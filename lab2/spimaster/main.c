@@ -56,6 +56,7 @@
 
 // Standard includes
 #include <string.h>
+#include <stdio.h>
 
 // Driverlib includes
 #include "hw_types.h"
@@ -72,8 +73,7 @@
 
 // Common interface includes
 #include "uart_if.h"
-#include "pinmux.h"
-
+#include "pin_mux_config.h"
 
 #define APPLICATION_VERSION     "1.1.1"
 //*****************************************************************************
@@ -110,41 +110,241 @@ extern uVectorEntry __vector_table;
 //                 GLOBAL VARIABLES -- End
 //*****************************************************************************
 
+#include "Adafruit_GFX.h"
+#include "Adafruit_SSD1351.h"
 
+extern int cursor_x;
+extern int cursor_y;
+
+float p = 3.1415926;
+
+// Color definitions
+#define BLACK           0x0000
+#define BLUE            0x001F
+#define GREEN           0x07E0
+#define CYAN            0x07FF
+#define RED             0xF800
+#define MAGENTA         0xF81F
+#define YELLOW          0xFFE0
+#define WHITE           0xFFFF
 
 //*****************************************************************************
-//
-//! SPI Slave Interrupt handler
-//!
-//! This function is invoked when SPI slave has its receive register full or
-//! transmit register empty.
-//!
-//! \return None.
-//
-//*****************************************************************************
-static void SlaveIntHandler()
-{
-    unsigned long ulRecvData;
-    unsigned long ulStatus;
+//  function delays 3*ulCount cycles
+void delay(unsigned long ulCount){
+    int i;
 
-    ulStatus = MAP_SPIIntStatus(GSPI_BASE,true);
-
-    MAP_SPIIntClear(GSPI_BASE,SPI_INT_RX_FULL|SPI_INT_TX_EMPTY);
-
-    if(ulStatus & SPI_INT_TX_EMPTY)
-    {
-        MAP_SPIDataPut(GSPI_BASE,g_ucTxBuff[ucTxBuffNdx%TR_BUFF_SIZE]);
-        ucTxBuffNdx++;
-    }
-
-    if(ulStatus & SPI_INT_RX_FULL)
-    {
-        MAP_SPIDataGetNonBlocking(GSPI_BASE,&ulRecvData);
-        g_ucTxBuff[ucRxBuffNdx%TR_BUFF_SIZE] = ulRecvData;
-        Report("%c",ulRecvData);
-        ucRxBuffNdx++;
-    }
+  do{
+    ulCount--;
+        for (i=0; i< 65535; i++) ;
+    }while(ulCount);
 }
+
+
+//*****************************************************************************
+void testfastlines(unsigned int color1, unsigned int color2) {
+    unsigned int x;
+    unsigned int y;
+
+   fillScreen(BLACK);
+   for (y=0; y < height()-1; y+=8) {
+     drawFastHLine(0, y, width()-1, color1);
+   }
+     delay(100);
+   for (x=0; x < width()-1; x+=8) {
+     drawFastVLine(x, 0, height()-1, color2);
+   }
+     delay(100);
+}
+
+//*****************************************************************************
+
+void testdrawrects(unsigned int color) {
+    unsigned int x;
+
+ fillScreen(BLACK);
+ for (x=0; x < height()-1; x+=6) {
+   drawRect((width()-1)/2 -x/2, (height()-1)/2 -x/2 , x, x, color);
+     delay(10);
+ }
+}
+
+//*****************************************************************************
+
+void testfillrects(unsigned int color1, unsigned int color2) {
+
+    unsigned char x;
+
+ fillScreen(BLACK);
+ for (x=height()-1; x > 6; x-=6) {
+   fillRect((width()-1)/2 -x/2, (height()-1)/2 -x/2 , x, x, color1);
+   drawRect((width()-1)/2 -x/2, (height()-1)/2 -x/2 , x, x, color2);
+     delay(10);
+ }
+}
+
+//*****************************************************************************
+
+void testfillcircles(unsigned char radius, unsigned int color) {
+    unsigned char x;
+    unsigned char y;
+
+  for (x=radius; x < width()-1; x+=radius*2) {
+    for (y=radius; y < height()-1; y+=radius*2) {
+      fillCircle(x, y, radius, color);
+            delay(10);
+    }
+  }
+}
+
+//*****************************************************************************
+
+void testdrawcircles(unsigned char radius, unsigned int color) {
+    unsigned char x;
+    unsigned char y;
+
+  for (x=0; x < width()-1+radius; x+=radius*2) {
+    for (y=0; y < height()-1+radius; y+=radius*2) {
+      drawCircle(x, y, radius, color);
+            delay(10);
+    }
+  }
+}
+
+//*****************************************************************************
+
+void testtriangles() {
+  int color = 0xF800;
+  int t;
+  int w = width()/2;
+  int x = height()-1;
+  int y = 0;
+  int z = width()-1;
+
+  fillScreen(BLACK);
+  for(t = 0 ; t <= 15; t+=1) {
+    drawTriangle(w, y, y, x, z, x, color);
+    x-=4;
+    y+=4;
+    z-=4;
+    color+=100;
+        delay(10);
+  }
+}
+
+//*****************************************************************************
+
+void testroundrects() {
+  int color = 100;
+
+    int i;
+  int x = 0;
+  int y = 0;
+  int w = width();
+  int h = height();
+
+  fillScreen(BLACK);
+
+  for(i = 0 ; i <= 24; i++) {
+    drawRoundRect(x, y, w, h, 5, color);
+    x+=2;
+    y+=3;
+    w-=4;
+    h-=6;
+    color+=1100;
+  }
+}
+
+//*****************************************************************************
+void testlines(unsigned int color) {
+    unsigned int x;
+    unsigned int y;
+
+   fillScreen(BLACK);
+   for (x=0; x < width()-1; x+=6) {
+     drawLine(0, 0, x, height()-1, color);
+   }
+     delay(10);
+   for (y=0; y < height()-1; y+=6) {
+     drawLine(0, 0, width()-1, y, color);
+   }
+     delay(100);
+
+   fillScreen(BLACK);
+   for (x=0; x < width()-1; x+=6) {
+     drawLine(width()-1, 0, x, height()-1, color);
+   }
+     delay(100);
+   for (y=0; y < height()-1; y+=6) {
+     drawLine(width()-1, 0, 0, y, color);
+   }
+     delay(100);
+
+   fillScreen(BLACK);
+   for (x=0; x < width()-1; x+=6) {
+     drawLine(0, height()-1, x, 0, color);
+   }
+     delay(100);
+   for (y=0; y < height()-1; y+=6) {
+     drawLine(0, height()-1, width()-1, y, color);
+   }
+     delay(100);
+
+   fillScreen(BLACK);
+   for (x=0; x < width()-1; x+=6) {
+     drawLine(width()-1, height()-1, x, 0, color);
+   }
+     delay(100);
+   for (y=0; y < height()-1; y+=6) {
+     drawLine(width()-1, height()-1, 0, y, color);
+   }
+     delay(100);
+
+}
+
+//*****************************************************************************
+
+void lcdTestPattern(void)
+{
+  unsigned int i,j;
+  goTo(0, 0);
+
+  for(i=0;i<128;i++)
+  {
+    for(j=0;j<128;j++)
+    {
+      if(i<16){writeData(RED>>8); writeData((unsigned char) RED);}
+      else if(i<32) {writeData(YELLOW>>8);writeData((unsigned char) YELLOW);}
+      else if(i<48){writeData(GREEN>>8);writeData((unsigned char) GREEN);}
+      else if(i<64){writeData(CYAN>>8);writeData((unsigned char) CYAN);}
+      else if(i<80){writeData(BLUE>>8);writeData((unsigned char) BLUE);}
+      else if(i<96){writeData(MAGENTA>>8);writeData((unsigned char) MAGENTA);}
+      else if(i<112){writeData(BLACK>>8);writeData((unsigned char) BLACK);}
+      else {writeData(WHITE>>8); writeData((unsigned char) WHITE);}
+    }
+  }
+}
+/**************************************************************************/
+void lcdTestPattern2(void)
+{
+  unsigned int i,j;
+  goTo(0, 0);
+
+  for(i=0;i<128;i++)
+  {
+    for(j=0;j<128;j++)
+    {
+      if(j<16){writeData(RED>>8); writeData((unsigned char) RED);}
+      else if(j<32) {writeData(YELLOW>>8);writeData((unsigned char) YELLOW);}
+      else if(j<48){writeData(GREEN>>8);writeData((unsigned char) GREEN);}
+      else if(j<64){writeData(CYAN>>8);writeData((unsigned char) CYAN);}
+      else if(j<80){writeData(BLUE>>8);writeData((unsigned char) BLUE);}
+      else if(j<96){writeData(MAGENTA>>8);writeData((unsigned char) MAGENTA);}
+      else if(j<112){writeData(BLACK>>8);writeData((unsigned char) BLACK);}
+      else {writeData(WHITE>>8);writeData((unsigned char) WHITE);}
+    }
+  }
+}
+
 
 //*****************************************************************************
 //
@@ -183,10 +383,10 @@ void MasterMain()
     //
     MAP_SPIConfigSetExpClk(GSPI_BASE,MAP_PRCMPeripheralClockGet(PRCM_GSPI),
                      SPI_IF_BIT_RATE,SPI_MODE_MASTER,SPI_SUB_MODE_0,
-                     (SPI_SW_CTRL_CS |
+                     (SPI_HW_CTRL_CS |
                      SPI_4PIN_MODE |
                      SPI_TURBO_OFF |
-                     SPI_CS_ACTIVEHIGH |
+                     SPI_CS_ACTIVELOW |
                      SPI_WL_8));
 
     //
@@ -194,39 +394,6 @@ void MasterMain()
     //
     MAP_SPIEnable(GSPI_BASE);
 
-    //
-    // Print mode on uart
-    //
-    Message("Enabled SPI Interface in Master Mode\n\r");
-
-    //
-    // User input
-    //
-    Report("Press any key to transmit data....");
-
-    //
-    // Read a character from UART terminal
-    //
-    ulUserData = MAP_UARTCharGet(UARTA0_BASE);
-
-
-    //
-    // Send the string to slave. Chip Select(CS) needs to be
-    // asserted at start of transfer and deasserted at the end.
-    //
-    MAP_SPITransfer(GSPI_BASE,g_ucTxBuff,g_ucRxBuff,50,
-            SPI_CS_ENABLE|SPI_CS_DISABLE);
-
-    //
-    // Report to the user
-    //
-    Report("\n\rSend      %s",g_ucTxBuff);
-    Report("Received  %s",g_ucRxBuff);
-
-    //
-    // Print a message
-    //
-    Report("\n\rType here (Press enter to exit) :");
 
     //
     // Initialize variable
@@ -236,36 +403,15 @@ void MasterMain()
     //
     // Enable Chip select
     //
-    MAP_SPICSEnable(GSPI_BASE);
+    //MAP_SPICSEnable(GSPI_BASE);
+    GPIOPinWrite(GPIOA3_BASE, 0x80, 0x80);
 
-    //
-    // Loop until user "Enter Key" is
-    // pressed
-    //
-    while(ulUserData != '\r')
-    {
-        //
-        // Read a character from UART terminal
-        //
-        ulUserData = MAP_UARTCharGet(UARTA0_BASE);
+    Adafruit_Init();
 
-        //
-        // Echo it back
-        //
-        MAP_UARTCharPut(UARTA0_BASE,ulUserData);
-
-        //
-        // Push the character over SPI
-        //
-        MAP_SPIDataPut(GSPI_BASE,ulUserData);
-
-        //
-        // Clean up the receive register into a dummy
-        // variable
-        //
-        MAP_SPIDataGet(GSPI_BASE,&ulDummy);
+    while(1){
+    testtriangles();
+    MAP_UtilsDelay(8000000);
     }
-
     //
     // Disable chip select
     //
@@ -282,55 +428,6 @@ void MasterMain()
 //! \return None.
 //
 //*****************************************************************************
-void SlaveMain()
-{
-    //
-    // Initialize the message
-    //
-    memcpy(g_ucTxBuff,SLAVE_MSG,sizeof(SLAVE_MSG));
-
-    //
-    // Set Tx buffer index
-    //
-    ucTxBuffNdx = 0;
-    ucRxBuffNdx = 0;
-
-    //
-    // Reset SPI
-    //
-    MAP_SPIReset(GSPI_BASE);
-
-    //
-    // Configure SPI interface
-    //
-    MAP_SPIConfigSetExpClk(GSPI_BASE,MAP_PRCMPeripheralClockGet(PRCM_GSPI),
-                     SPI_IF_BIT_RATE,SPI_MODE_SLAVE,SPI_SUB_MODE_0,
-                     (SPI_HW_CTRL_CS |
-                     SPI_4PIN_MODE |
-                     SPI_TURBO_OFF |
-                     SPI_CS_ACTIVEHIGH |
-                     SPI_WL_8));
-
-    //
-    // Register Interrupt Handler
-    //
-    MAP_SPIIntRegister(GSPI_BASE,SlaveIntHandler);
-
-    //
-    // Enable Interrupts
-    //
-    MAP_SPIIntEnable(GSPI_BASE,SPI_INT_RX_FULL|SPI_INT_TX_EMPTY);
-
-    //
-    // Enable SPI for communication
-    //
-    MAP_SPIEnable(GSPI_BASE);
-
-    //
-    // Print mode on uart
-    //
-    Message("Enabled SPI Interface in Slave Mode\n\rReceived : ");
-}
 
 //*****************************************************************************
 //
@@ -376,6 +473,7 @@ BoardInit(void)
 //*****************************************************************************
 void main()
 {
+
     //
     // Initialize Board configurations
     //
@@ -391,35 +489,16 @@ void main()
     //
     MAP_PRCMPeripheralClkEnable(PRCM_GSPI,PRCM_RUN_MODE_CLK);
 
-    //
-    // Initialising the Terminal.
-    //
-    InitTerm();
-
-    //
-    // Clearing the Terminal.
-    //
-    ClearTerm();
-
-    //
-    // Display the Banner
-    //
-    Message("\n\n\n\r");
-    Message("\t\t   ********************************************\n\r");
-    Message("\t\t        CC3200 SPI Demo Application  \n\r");
-    Message("\t\t   ********************************************\n\r");
-    Message("\n\n\n\r");
 
     //
     // Reset the peripheral
     //
     MAP_PRCMPeripheralReset(PRCM_GSPI);
 
-#if MASTER_MODE
 
     MasterMain();
 
-#else
+/*#else
 
     SlaveMain();
 
@@ -428,7 +507,7 @@ void main()
     while(1)
     {
 
-    }
+    }*/
 
 }
 
