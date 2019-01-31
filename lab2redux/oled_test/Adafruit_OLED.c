@@ -30,19 +30,18 @@ void writeCommand(unsigned char c) {
 /* Write a function to send a command byte c to the OLED via
 *  SPI.
 */
+        //enable CS and set OC to low to start writing command, set DC to low for command
         unsigned long ulDummy;
-    //volatile unsigned long delay;
         MAP_SPICSEnable(GSPI_BASE);
         GPIOPinWrite(GPIOA0_BASE, 0x40, 0x00);
 
         GPIOPinWrite(GPIOA1_BASE, 0x1, 0x0);
 
 
-        MAP_SPIDataPut(GSPI_BASE,c);
-        MAP_SPIDataGet(GSPI_BASE,&ulDummy);
-        //for(delay=0; delay<100; delay=delay+1);
-        //MAP_SPITransfer(GSPI_BASE, &c, 0, 1, SPI_CS_ENABLE|SPI_CS_DISABLE);
+        MAP_SPIDataPut(GSPI_BASE,c);//write command
+        MAP_SPIDataGet(GSPI_BASE,&ulDummy);//get buffer
 
+        //set OC AND CS back to high to stop
         GPIOPinWrite(GPIOA1_BASE, 0x1, 0x1);
         MAP_SPICSDisable(GSPI_BASE);
 
@@ -55,8 +54,8 @@ void writeData(unsigned char c) {
 /* Write a function to send a data byte c to the OLED via
 *  SPI.
 */
-        unsigned long ulDummy;
-    //volatile unsigned long delay;
+        //enable CS and set OC to low to start writing command, set DC to high for data
+         unsigned long ulDummy;
          MAP_SPICSEnable(GSPI_BASE);
          GPIOPinWrite(GPIOA0_BASE, 0x40, 0x40);
 
@@ -65,9 +64,8 @@ void writeData(unsigned char c) {
 
          MAP_SPIDataPut(GSPI_BASE,c);
          MAP_SPIDataGet(GSPI_BASE,&ulDummy);
-      //   for(delay=0; delay<100; delay=delay+1);
-         //MAP_SPITransfer(GSPI_BASE, &c, 0, 1, SPI_CS_ENABLE|SPI_CS_DISABLE);
 
+         //set OC back to high to stop
          GPIOPinWrite(GPIOA1_BASE, 0x1, 0x1);
          MAP_SPICSDisable(GSPI_BASE);
 
