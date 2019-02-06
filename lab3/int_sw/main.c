@@ -35,7 +35,7 @@
 
 // Common interface includes
 #include "uart_if.h"
-
+#include "timer_if.h"
 #include "pin_mux_config.h"
 
 
@@ -48,6 +48,9 @@ volatile unsigned long SW2_intcount;
 volatile unsigned long SW3_intcount;
 volatile unsigned char SW2_intflag;
 volatile unsigned char SW3_intflag;
+volatile unsigned char timeCount;
+volatile unsigned char prevTime;
+
 
 //*****************************************************************************
 //                 GLOBAL VARIABLES -- End
@@ -69,12 +72,37 @@ static void BoardInit(void);
 //*****************************************************************************
 //                      LOCAL FUNCTION DEFINITIONS                         
 //*****************************************************************************
+static void TimerIntHandler(){
+    Timer_IF_InterruptClear(g_ulBase);
+    timerCount++;
+}
+
 static void GPIOA1IntHandler(void) { // SW3 handler
     unsigned long ulStatus;
 
     ulStatus = MAP_GPIOIntStatus (GPIOA3_BASE, true);
     MAP_GPIOIntClear(GPIOA3_BASE, ulStatus);		// clear interrupts on GPIOA1
-    SW3_intcount++;
+    
+
+
+    if(prevTime == 0){
+        prevTime = timerCount;
+    }else{
+        unsigned char tlength = timerCount - prevTime;
+        if(tlength >= 80){
+            prevTime = timerCount;
+            Report("Signal length: %d", tlength);
+        }
+        else if(tlength >= 39){  //next signal will be bit
+            prevTime = 0;
+            Report("Signal length: %d", tlength);
+        }
+        else if(tlength >= 14){  //
+            prevTime = 0;
+            Report("Signal length: %d", tlength);
+        }
+    }
+
     SW3_intflag=1;
 }
 
@@ -129,7 +157,7 @@ int main() {
 
     ClearTerm();
 
-    MAP_TimerConfigure(TIMERA2_BASE, TIMER_CFG_PERIODIC);
+    
 
 
 
@@ -142,18 +170,24 @@ int main() {
     // Configure rising edge interrupts on SW2 and SW3
     //
     MAP_GPIOIntTypeSet(GPIOA3_BASE, 0x40, GPIO_BOTH_EDGES);	// SW3
-    ulStatus = MAP_GPIOIntStatus (GPIOA3_BASE, false);
+    ulStatus = MAP_GPIOIntStatus(GPIOA3_BASE, false);
     MAP_GPIOIntClear(GPIOA3_BASE, ulStatus);			// clear interrupts on GPIOA1
 
+    g_ulBase = TIMERA0_BASE;
     // clear global variables
     SW2_intcount=0;
     SW3_intcount=0;
     SW2_intflag=0;
     SW3_intflag=0;
+    prevTime = 0;
+    timerCount = 0;
 
     // Enable SW2 and SW3 interrupts
     MAP_GPIOIntEnable(GPIOA3_BASE, 0x40);
 
+    Timer_IF_Init(PRCM_TIMERA0, g_ulBase, TIMER_CFG_PERIODIC, TIMER_A, 0);
+    Timer_IF_IntSetup(g_ulBase, TIMER_A, TimerBaseIntHandler);
+    TimerLoadSet(g_ulBase, TIMER_A, 8000);
 
     Message("\t\t****************************************************\n\r");
     Message("\t\t\tPush SW3 or SW2 to generate an interrupt\n\r");
@@ -163,14 +197,12 @@ int main() {
 
     while (1) {
     	while ((SW2_intflag==0) && (SW3_intflag==0)) {;}
-    	if (SW2_intflag) {
-    		SW2_intflag=0;	// clear flag
-    		Report("Falling ints = %d\t Rising ints = %d\r\n", SW2_intcount, SW3_intcount);
-    	}
     	if (SW3_intflag) {
     		SW3_intflag=0;	// clear flag
-    		Report("Falling ints = %d\t Rising ints = %d\r\n", SW2_intcount, SW3_intcount);
+            //falling 
+    		
     	}
+
     }
 }
 
