@@ -84,7 +84,7 @@ void PinMuxConfig(void)
     PRCMPeripheralClkEnable(PRCM_GPIOA2, PRCM_RUN_MODE_CLK);
     PRCMPeripheralClkEnable(PRCM_UARTA0, PRCM_RUN_MODE_CLK);
 
-    MAP_PRCMPeripheralClkEnable(PRCM_TIMERA2, PRCM_RUN_MODE_CLK);
+    PRCMPeripheralClkEnable(PRCM_TIMERA2, PRCM_RUN_MODE_CLK);
 
     //
        // Enable Peripheral Clocks
@@ -120,9 +120,9 @@ void PinMuxConfig(void)
     PinTypeUART(PIN_57, PIN_MODE_3);
 
     //
-        // Configure PIN_05 for TIMERCP5 GT_CCP05
-        //
-        MAP_PinTypeTimer(PIN_04, PIN_MODE_12);
+//        // Configure PIN_05 for TIMERCP5 GT_CCP05
+//        //
+//        PinTypeTimer(PIN_05, PIN_MODE_12);
 
 
 

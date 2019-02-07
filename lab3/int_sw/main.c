@@ -48,8 +48,8 @@ volatile unsigned long SW2_intcount;
 volatile unsigned long SW3_intcount;
 volatile unsigned char SW2_intflag;
 volatile unsigned char SW3_intflag;
-volatile unsigned char timeCount;
-volatile unsigned char prevTime;
+volatile unsigned long timerCount;
+static volatile unsigned long g_ulBase;
 
 
 //*****************************************************************************
@@ -85,23 +85,7 @@ static void GPIOA1IntHandler(void) { // SW3 handler
     
 
 
-    if(prevTime == 0){
-        prevTime = timerCount;
-    }else{
-        unsigned char tlength = timerCount - prevTime;
-        if(tlength >= 80){
-            prevTime = timerCount;
-            Report("Signal length: %d", tlength);
-        }
-        else if(tlength >= 39){  //next signal will be bit
-            prevTime = 0;
-            Report("Signal length: %d", tlength);
-        }
-        else if(tlength >= 14){  //
-            prevTime = 0;
-            Report("Signal length: %d", tlength);
-        }
-    }
+
 
     SW3_intflag=1;
 }
@@ -158,14 +142,17 @@ int main() {
     ClearTerm();
 
     
-
-
+    g_ulBase = TIMERA2_BASE;
+    Message("\t\t Test \n\r");
 
     //
     // Register the interrupt handlers
     //
     MAP_GPIOIntRegister(GPIOA3_BASE, GPIOA1IntHandler);
+    TimerIntRegister(TIMERA2_BASE,TIMER_A,TimerIntHandler);
+    TimerConfigure(TIMERA2_BASE, (TIMER_CFG_SPLIT_PAIR | TIMER_CFG_A_PERIODIC_UP));
 
+    Message("\t\t Test2 \n\r");
     //
     // Configure rising edge interrupts on SW2 and SW3
     //
@@ -173,21 +160,21 @@ int main() {
     ulStatus = MAP_GPIOIntStatus(GPIOA3_BASE, false);
     MAP_GPIOIntClear(GPIOA3_BASE, ulStatus);			// clear interrupts on GPIOA1
 
-    g_ulBase = TIMERA0_BASE;
     // clear global variables
     SW2_intcount=0;
     SW3_intcount=0;
     SW2_intflag=0;
     SW3_intflag=0;
-    prevTime = 0;
+    long wStart = 0;
     timerCount = 0;
-
+    Message("\t\t Test3 \n\r");
     // Enable SW2 and SW3 interrupts
     MAP_GPIOIntEnable(GPIOA3_BASE, 0x40);
 
-    Timer_IF_Init(PRCM_TIMERA0, g_ulBase, TIMER_CFG_PERIODIC, TIMER_A, 0);
-    Timer_IF_IntSetup(g_ulBase, TIMER_A, TimerBaseIntHandler);
-    TimerLoadSet(g_ulBase, TIMER_A, 8000);
+//    Timer_IF_Init(PRCM_TIMERA0, g_ulBase, TIMER_CFG_PERIODIC, TIMER_A, 0);
+//    Timer_IF_IntSetup(g_ulBase, TIMER_A, TimerIntHandler);
+    TimerLoadSet(TIMERA2_BASE, TIMER_A, 0x1F40);
+    TimerIntEnable(TIMERA2_BASE,TIMER_TIMA_TIMEOUT);
 
     Message("\t\t****************************************************\n\r");
     Message("\t\t\tPush SW3 or SW2 to generate an interrupt\n\r");
@@ -195,14 +182,59 @@ int main() {
     Message("\n\n\n\r");
 	Report("Falling ints = %d\t Rising ints = %d\r\n", SW2_intcount, SW3_intcount);
 
+	TimerEnable(TIMERA2_BASE,TIMER_A);
+    int num = 0;
+    int sigstart = 0;
+    int end = 0;
     while (1) {
-    	while ((SW2_intflag==0) && (SW3_intflag==0)) {;}
+    	while ((SW3_intflag==0)) {;}
     	if (SW3_intflag) {
     		SW3_intflag=0;	// clear flag
             //falling 
-    		
-    	}
+    		//Report("Button pressed: %d\r\n", timerCount);
+    		if(wStart == 0){
+    		        wStart = timerCount;
+    		    }else{
+                    //Report("%d\n\r", timerCount);
+    		        long wEnd = timerCount;
+    		        unsigned long tlength = wEnd - wStart;
+    		        //Report("%d\n\r\n\r", timerCount);
+    		        if(tlength >= 200){
+    		            //Report("Signal end: %d, %d\r\n", wStart, wEnd);
+                        wStart = wEnd;
 
+    		        }
+    		        else if(tlength >= 80){
+    		            //sigstart = timerCount;
+    		            Report("\n\r\n\r");
+    		            //Report("Signal start: %d, %d\r\n", wStart, wEnd);
+                        wStart = wEnd;
+
+    		        }
+    		        else if(tlength >= 39){  //next signal will be bit
+    		            //Report("Signal intermediate: %d, %d\r\n", wStart, wEnd);
+                        wStart = 0;
+
+    		        }
+    		        else if(tlength >= 10){  //
+    		            num *= 2;
+    		            num += 1;
+    		            Report("1\r\n");
+                        wStart = 0;
+
+    		        }
+    		        else if(tlength >= 4){
+    		            num *= 2;
+    		            Report("0\r\n");
+                        wStart = 0;
+
+    		        }
+    		    }
+    	}
+    	if((timerCount - sigstart) >= 290){
+    	    //Report("Signal End\n\r");
+    	    end = 1;
+    	}
     }
 }
 

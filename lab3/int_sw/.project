@@ -30,6 +30,11 @@
 			<type>1</type>
 			<locationURI>CC3200_SDK_ROOT/example/common/startup_ccs.c</locationURI>
 		</link>
+		<link>
+			<name>timer_if.c</name>
+			<type>1</type>
+			<locationURI>CC3200_SDK_ROOT/example/common/timer_if.c</locationURI>
+		</link>
 	</linkedResources>
 	<variableList>
 		<variable>
