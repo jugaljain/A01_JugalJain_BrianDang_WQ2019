@@ -91,15 +91,6 @@ static void GPIOA1IntHandler(void) { // SW3 handler
 }
 
 
-
-static void GPIOA2IntHandler(void) {	// SW2 handler
-	unsigned long ulStatus;
-
-    ulStatus = MAP_GPIOIntStatus (GPIOA3_BASE, true);
-    MAP_GPIOIntClear(GPIOA3_BASE, ulStatus);		// clear interrupts on GPIOA2
-    SW2_intcount++;
-    SW2_intflag=1;
-}
 //*****************************************************************************
 //
 //! Board Initialization & Configuration
@@ -130,6 +121,48 @@ BoardInit(void) {
 //! \return None.
 //
 //****************************************************************************
+
+int decode(int num){
+    int button;
+    if(num == 0xA800){
+        button = 0;
+    }
+    else if(num == 0xA880){
+        button = 1;
+    }
+    else if(num == 0xA840){
+        button = 2;
+    }
+    else if(num == 0xA8C0){
+            button = 3;
+        }
+    else if(num == 0xA820){
+            button = 4;
+        }
+    else if(num == 0xA8A0){
+            button = 5;
+        }
+    else if(num == 0xA860){
+            button = 6;
+        }
+    else if(num == 0xA8E0){
+            button = 7;
+        }
+    else if(num == 0xA810){
+            button = 8;
+        }
+    else if(num == 0xA890){
+            button = 9;
+        }
+    else if(num == 0xA830){
+            button = 10;
+        }
+    else if(num == 0xA854){
+            button = 11;
+        }
+    return button;
+}
+
 int main() {
 	unsigned long ulStatus;
 
@@ -184,57 +217,80 @@ int main() {
 
 	TimerEnable(TIMERA2_BASE,TIMER_A);
     int num = 0;
-    int sigstart = 0;
-    int end = 0;
+    int buttonPressStart = 0;
+    int buttonPressEnd = 0;
+    int bitcount = 0;
+    int pressEndTime = 0;
+    int button;
     while (1) {
     	while ((SW3_intflag==0)) {;}
     	if (SW3_intflag) {
     		SW3_intflag=0;	// clear flag
             //falling 
     		//Report("Button pressed: %d\r\n", timerCount);
-    		if(wStart == 0){
+    		    if(wStart == 0){
     		        wStart = timerCount;
-    		    }else{
+    		        if(buttonPressEnd == 1){
+    		            buttonPressStart = wStart;
+    		        }
+    		    }
+    		    else{
                     //Report("%d\n\r", timerCount);
     		        long wEnd = timerCount;
     		        unsigned long tlength = wEnd - wStart;
     		        //Report("%d\n\r\n\r", timerCount);
-    		        if(tlength >= 200){
-    		            //Report("Signal end: %d, %d\r\n", wStart, wEnd);
-                        wStart = wEnd;
-
-    		        }
-    		        else if(tlength >= 80){
-    		            //sigstart = timerCount;
-    		            Report("\n\r\n\r");
+//    		        if(tlength >= 200){
+//    		            //Report("Signal buttonPressEnd: %d, %d\r\n", wStart, wEnd);
+//                        wStart = wEnd;
+//                        pressEndTime = wEnd;
+//                        buttonPressEnd = 1;
+//    		        }
+    		        if(tlength >= 80){
+    		            //Report("\n\r\n\r");
     		            //Report("Signal start: %d, %d\r\n", wStart, wEnd);
                         wStart = wEnd;
-
+                        if(buttonPressEnd == 1){
+                            pressEndTime = wEnd;
+                            if(pressEndTime - buttonPressStart > 500){
+                                buttonPressEnd = 0;
+                            }
+                        }
     		        }
     		        else if(tlength >= 39){  //next signal will be bit
     		            //Report("Signal intermediate: %d, %d\r\n", wStart, wEnd);
                         wStart = 0;
-
     		        }
-    		        else if(tlength >= 10){  //
+    		        else if((tlength >= 10)){  //
     		            num *= 2;
     		            num += 1;
-    		            Report("1\r\n");
+    		            //Report("1\r\n");
                         wStart = 0;
-
+                        bitcount++;
     		        }
-    		        else if(tlength >= 4){
+    		        else if((tlength >= 4)){
     		            num *= 2;
-    		            Report("0\r\n");
+    		            //Report("0\r\n");
                         wStart = 0;
-
+                        bitcount++;
     		        }
     		    }
-    	}
-    	if((timerCount - sigstart) >= 290){
-    	    //Report("Signal End\n\r");
-    	    end = 1;
-    	}
+    		    if(bitcount == 16){
+    		        if(buttonPressEnd == 0){
+    		            button = decode(num);
+    		            Report("%d\n\r", button);
+    		        }
+    		        buttonPressEnd = 1;
+    		        bitcount = 0;
+    		        num = 0;
+    		    }
+    		    if(buttonPressEnd == 1){
+
+    		    }
+    		}
+    	//if((buttonPressEnd > 0) && (timerCount - buttonPressEnd < )){
+
+    	//}
+
     }
 }
 
