@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <launchConfiguration type="com.ti.ccstudio.debug.launchType.device.debugging">
+<setAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_HIDE_CONFIG_ELEMENT_TYPES">
+<setEntry value="BOARD"/>
+<setEntry value="BYPASSED_CPU"/>
+<setEntry value="BYPASSED_ROUTER"/>
+<setEntry value="CONNECTION"/>
+<setEntry value="DEVICE"/>
+<setEntry value="NON_DEBUG_CPU"/>
+<setEntry value="NO_DRIVER"/>
+<setEntry value="ROUTER"/>
+<setEntry value="SUBPATH"/>
+<setEntry value="SYSTEM"/>
+</setAttribute>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_LOAD_PROGRAM.C:\Users\Brian Dang\Documents\eec172\labs\eec172labs\lab3\timer_test\targetConfigs\CC3200.ccxml.Stellaris In-Circuit Debug Interface/Cortex_M4_0" value="ALL"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROGRAM.C:\Users\Brian Dang\Documents\eec172\labs\eec172labs\lab3\timer_test\targetConfigs\CC3200.ccxml.Stellaris In-Circuit Debug Interface/Cortex_M4_0" value="${build_artifact:timer_test}"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROJECT.C:\Users\Brian Dang\Documents\eec172\labs\eec172labs\lab3\timer_test\targetConfigs\CC3200.ccxml.Stellaris In-Circuit Debug Interface/Cortex_M4_0" value="timer_test"/>
