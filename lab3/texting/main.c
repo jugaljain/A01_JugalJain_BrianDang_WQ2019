@@ -17,6 +17,8 @@
 // Standard includes
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 // Driverlib includes
 #include "hw_types.h"
 #include "hw_ints.h"
@@ -228,6 +230,10 @@ int main()
 
     ClearTerm();
 
+//    UARTConfigSetExpClk(CONSOLE,MAP_PRCMPeripheralClockGet(CONSOLE_PERIPH),
+//                      UART_BAUD_RATE, (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
+//                       UART_CONFIG_PAR_NONE));
+
     g_ulBase = TIMERA2_BASE;
 
     //
@@ -292,7 +298,7 @@ int main()
     int bitcount = 0;
     int pressEndTime = 0;
     int button = 20;
-    int prevButton;
+    int prevButton = 13;
     int textStart = 0;
     int textEnd = 0;
     int text = 0;
@@ -353,7 +359,7 @@ int main()
                             prevButton = button;
                             sep = 0;
                         }
-                        if (pressEndTime - buttonPressStart > 5000)
+                        if (pressEndTime - buttonPressStart > 10000)
                         {
                             sep = 1;
                         }
@@ -385,14 +391,16 @@ int main()
                 if (buttonPressEnd == 0)
                 {
                     button = decode(num);
-                    if (prevButton == button)
+                    if (prevButton == button && button != -1)
                     {
                         if (sep == 0)
                         {
                             //switch letter
                             if (button >= 0 && button < 10)
                             {
-                                message[msgLength] = textTranslate(button,
+
+                                int len = strlen(message);
+                                message[len - 1] = textTranslate(button,
                                                                    buttonIdx);
                                 buttonIdx++;
                             }
@@ -400,8 +408,13 @@ int main()
                             {
                                 if (button == 10 && msgLength >= 0)
                                 {
-                                    message[msgLength] = '\0';
-                                    msgLength = msgLength > 0 ? msgLength-- : 0;
+                                    int len = strlen(message);
+                                    message[len - 1] = '\0';
+                                    msgLength = msgLength > 0 ? (msgLength-1) : 0;
+                                    fillRect(0,0,128,7,BLACK);
+                                    setCursor(0,0);
+                                    Outstr(message);
+                                    setCursor(0,0);
                                 }
                             }
                         }
@@ -409,42 +422,57 @@ int main()
                         {
                             if (button >= 0 && button < 10)
                             {
-                                buttonIdx = 0;
-                                message[msgLength] = textTranslate(button,
-                                                                   buttonIdx);
+                                int len = strlen(message);
                                 msgLength++;
+                                buttonIdx = 0;
+                                message[len] = textTranslate(button,
+                                                                   buttonIdx);
+
                             }
                             else
                             {
                                 if (button == 10 && msgLength >= 0)
                                 {
-                                    message[msgLength] = '\0';
-                                    msgLength = msgLength > 0 ? msgLength-- : 0;
+                                    int len = strlen(message);
+                                    message[len - 1] = '\0';
+                                    msgLength = msgLength > 0 ? msgLength-1 : 0;
+                                    fillRect(0,0,128,7,BLACK);
+                                    setCursor(0,0);
+                                    Outstr(message);
+                                    setCursor(0,0);
                                 }
                             }
                         }
 
                     }
-                    else
+                    else if(prevButton != button && button != -1)
                     {
                         buttonIdx = 0;
                         if (button >= 0 && button < 10)
                         {
-                            message[msgLength] = textTranslate(button,
+                            int len = strlen(message);
+                            message[len] = textTranslate(button,
                                                                buttonIdx);
                             buttonIdx++;
                             msgLength++;
+
                         }
                         else
                         {
-                            if (button == 10 && msgLength > 0)
+                            if (button == 10 && msgLength >= 0)
                             {
-                                message[msgLength] = '\0';
-                                msgLength--;
+                                int len = strlen(message);
+                                message[len - 1] = '\0';
+                                msgLength = msgLength > 0 ? msgLength-1 : 0;
+                                fillRect(0,0,128,7,BLACK);
+                                setCursor(0,0);
+                                Outstr(message);
+                                setCursor(0,0);
                             }
                         }
                     }
-                    Report("%s: %d\n\r", message, msgLength);
+                    int len = strlen(message);
+                    Report("%s: %d, b: %d, pb: %d\n\r", message, len, button, prevButton);
                     Outstr(message);
                     setCursor(0,0);
                 }
