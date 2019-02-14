@@ -34,6 +34,8 @@
 #include "utils.h"
 #include "timer.h"
 #include "spi.h"
+#include "uart.h"
+#include "prcm.h"
 
 // Common interface includes
 #include "uart_if.h"
@@ -66,6 +68,7 @@ volatile unsigned char SW2_intflag;
 volatile unsigned char SW3_intflag;
 volatile unsigned long timerCount;
 static volatile unsigned long g_ulBase;
+char* outMessage;
 char letters[10][5] =
         { { ' ', ' ', ' ', ' ', ' ' }, { '1', '1', '1', '1', '1' }, { 'A', 'B',
                                                                       'C', '2',
@@ -101,7 +104,7 @@ static void BoardInit(void);
 //*****************************************************************************
 static void TimerIntHandler()
 {
-    Timer_IF_InterruptClear(g_ulBase);
+    Timer_IF_InterruptClear(TIMERA2_BASE);
     timerCount++;
 }
 
@@ -113,6 +116,40 @@ static void GPIOA1IntHandler(void)
     MAP_GPIOIntClear(GPIOA3_BASE, ulStatus);       // clear interrupts on GPIOA1
 
     SW3_intflag = 1;
+}
+
+static void UARTIntHandler(void)
+{
+    printf("Inside handler\n\r");
+    UARTIntDisable(UARTA1_BASE,UART_INT_RX);
+    UARTIntClear(UARTA1_BASE, UART_INT_RX);
+    printf("before loop\n");
+    while (UARTCharsAvail(UARTA1_BASE))
+    {
+        printf("inside loop\n");
+        char sChar = UARTCharGet(UARTA1_BASE);
+        printf("%c\n", sChar);
+        if (sChar != '\0')
+        {
+            printf("%d\n", strlen(outMessage));
+            outMessage[strlen(outMessage)] = sChar;
+            printf("%s:not null character\n", outMessage);
+        }
+
+    }
+    outMessage[strlen(outMessage)] = '\0';
+    fillRect(0, 63, 128, 7, BLACK);
+    setCursor(0, 63);
+    Outstr(outMessage);
+    setCursor(0, 0);
+    printf("%s \n", outMessage);
+    int i = 0;
+    for (i = strlen(outMessage); i > 0; i--)
+    {
+        outMessage[i - 1] = '\0';
+    }
+    printf("%d\n", strlen(outMessage));
+    UARTIntEnable(UARTA1_BASE,UART_INT_RX);
 }
 
 //*****************************************************************************
@@ -229,13 +266,26 @@ int main()
     InitTerm();
 
     ClearTerm();
-
-//    UARTConfigSetExpClk(CONSOLE,MAP_PRCMPeripheralClockGet(CONSOLE_PERIPH),
-//                      UART_BAUD_RATE, (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
-//                       UART_CONFIG_PAR_NONE));
+    printf("Test\n\r");
 
     g_ulBase = TIMERA2_BASE;
 
+    outMessage = (char*) malloc(sizeof(char) * 512);
+    int i = 0;
+    for(i = 0; i < 512; i++){
+        outMessage[i] = '\0';
+    }
+    //Report("Test1\n\r");
+    UARTIntRegister(UARTA1_BASE, UARTIntHandler);
+    UARTIntClear(UARTA1_BASE, UART_INT_RX);
+    UARTIntEnable(UARTA1_BASE, UART_INT_RX);
+    UARTFIFOEnable(UARTA1_BASE);
+    UARTFIFOLevelSet(UARTA1_BASE,UART_FIFO_TX1_8,UART_FIFO_RX1_8);
+    UARTConfigSetExpClk(UARTA1_BASE, PRCMPeripheralClockGet(PRCM_UARTA1), 115200,
+                        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
+                        UART_CONFIG_PAR_NONE));
+    //UARTEnable(UARTA1_BASE);
+    //Report("Test2\n\r");
     //
     // Register the interrupt handlers
     //
@@ -299,13 +349,10 @@ int main()
     int pressEndTime = 0;
     int button = 20;
     int prevButton = 13;
-    int textStart = 0;
-    int textEnd = 0;
-    int text = 0;
     int sep = 0;
     char* message = (char*) malloc(sizeof(char) * 512);
-    int i = 0;
-    for(i = 0; i < 512; i++){
+    for (i = 0; i < 512; i++)
+    {
         message[i] = '\0';
     }
     int msgLength = 0;
@@ -388,6 +435,7 @@ int main()
             }
             if (bitcount == 16)
             {
+                //Report("Test3\n\r");
                 if (buttonPressEnd == 0)
                 {
                     button = decode(num);
@@ -401,20 +449,30 @@ int main()
 
                                 int len = strlen(message);
                                 message[len - 1] = textTranslate(button,
-                                                                   buttonIdx);
+                                                                 buttonIdx);
                                 buttonIdx++;
                             }
                             else
                             {
-                                if (button == 10 && msgLength >= 0)
+                                if (button == 10 && (strlen(message)) > 0)
                                 {
                                     int len = strlen(message);
                                     message[len - 1] = '\0';
-                                    msgLength = msgLength > 0 ? (msgLength-1) : 0;
-                                    fillRect(0,0,128,7,BLACK);
-                                    setCursor(0,0);
+                                    msgLength =
+                                            msgLength > 0 ? (msgLength - 1) : 0;
+                                    fillRect(0, 0, 128, 7, BLACK);
+                                    setCursor(0, 0);
                                     Outstr(message);
-                                    setCursor(0,0);
+                                    setCursor(0, 0);
+                                }
+                                else if (button == 11 && (strlen(message)) > 0)
+                                {
+                                    int i = 0;
+                                    for (; i < strlen(message); i++)
+                                    {
+                                        UARTCharPut(UARTA1_BASE ,message[i]);
+                                    }
+
                                 }
                             }
                         }
@@ -425,58 +483,76 @@ int main()
                                 int len = strlen(message);
                                 msgLength++;
                                 buttonIdx = 0;
-                                message[len] = textTranslate(button,
-                                                                   buttonIdx);
+                                message[len] = textTranslate(button, buttonIdx);
 
                             }
                             else
                             {
-                                if (button == 10 && msgLength >= 0)
+                                if (button == 10 && (strlen(message)) > 0)
                                 {
                                     int len = strlen(message);
                                     message[len - 1] = '\0';
-                                    msgLength = msgLength > 0 ? msgLength-1 : 0;
-                                    fillRect(0,0,128,7,BLACK);
-                                    setCursor(0,0);
+                                    msgLength =
+                                            msgLength > 0 ? msgLength - 1 : 0;
+                                    fillRect(0, 0, 128, 7, BLACK);
+                                    setCursor(0, 0);
                                     Outstr(message);
-                                    setCursor(0,0);
+                                    setCursor(0, 0);
+                                }
+                                else if (button == 11 && (strlen(message)) > 0)
+                                {
+                                    int i = 0;
+                                    for (; i < strlen(message); i++)
+                                    {
+                                        UARTCharPut(UARTA1_BASE ,message[i]);
+                                    }
+
                                 }
                             }
                         }
 
                     }
-                    else if(prevButton != button && button != -1)
+                    else if (prevButton != button && button != -1)
                     {
                         buttonIdx = 0;
                         if (button >= 0 && button < 10)
                         {
                             int len = strlen(message);
-                            message[len] = textTranslate(button,
-                                                               buttonIdx);
+                            message[len] = textTranslate(button, buttonIdx);
                             buttonIdx++;
                             msgLength++;
 
                         }
                         else
                         {
-                            if (button == 10 && msgLength >= 0)
+                            if (button == 10 && (strlen(message)) > 0)
                             {
                                 int len = strlen(message);
                                 message[len - 1] = '\0';
-                                msgLength = msgLength > 0 ? msgLength-1 : 0;
-                                fillRect(0,0,128,7,BLACK);
-                                setCursor(0,0);
+                                msgLength = msgLength > 0 ? msgLength - 1 : 0;
+                                fillRect(0, 0, 128, 7, BLACK);
+                                setCursor(0, 0);
                                 Outstr(message);
-                                setCursor(0,0);
+                                setCursor(0, 0);
+                            }
+                            else if (button == 11 && (strlen(message)) > 0)
+                            {
+                                int i = 0;
+                                for (; i < strlen(message); i++)
+                                {
+                                    UARTCharPut(UARTA1_BASE ,message[i]);
+                                }
+
                             }
                         }
                     }
                     int len = strlen(message);
-                    Report("%s: %d, b: %d, pb: %d\n\r", message, len, button, prevButton);
+                    printf("%s: %d, b: %d, pb: %d\n\r", message, len, button,
+                           prevButton);
                     Outstr(message);
-                    setCursor(0,0);
+                    setCursor(0, 0);
                 }
-				buttonPressEnd = 1;
+                buttonPressEnd = 1;
                 bitcount = 0;
                 num = 0;
             }
@@ -487,7 +563,6 @@ int main()
         }
     }
 }
-
 
 //*****************************************************************************
 //

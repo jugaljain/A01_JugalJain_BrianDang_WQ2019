@@ -4,6 +4,7 @@
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROGRAM.C:\Users\Brian Dang\Documents\eec172\labs\eec172labs\lab3\timer_cc\timer.ccxml.Stellaris In-Circuit Debug Interface_0/Cortex_M4_0" value="${build_artifact:uart_demo}"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROJECT.C:\Users\Brian Dang\Documents\eec172\labs\eec172labs\lab3\timer_cc\timer.ccxml.Stellaris In-Circuit Debug Interface_0/Cortex_M4_0" value="uart_demo"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_TARGET_CONFIG" value="${target_config_active_default:uart_demo}"/>
+<stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.C:\Users\Brian Dang\Documents\eec172\labs\eec172labs\lab3\timer_cc\timer.ccxml.Stellaris In-Circuit Debug Interface_0/Cortex_M4_0" value="C:/Users\Brian Dang\Documents\eec172\labs\eec172labs\lab3\uart_demo\Release\uart_demo.out"/>
 <listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
 <listEntry value="/uart_demo"/>
 </listAttribute>
