@@ -1,18 +1,3 @@
-//*****************************************************************************
-//
-// Application Name     - int_sw
-// Application Overview - The objective of this application is to demonstrate
-//                          GPIO interrupts using SW2 and SW3.
-//                          NOTE: the switches are not debounced!
-//
-//*****************************************************************************
-
-//****************************************************************************
-//
-//! \addtogroup int_sw
-//! @{
-//
-//****************************************************************************
 
 // Standard includes
 #include <stdio.h>
@@ -57,9 +42,7 @@
 
 #define SPI_IF_BIT_RATE  100000
 #define TR_BUFF_SIZE     100
-//*****************************************************************************
-//                 GLOBAL VARIABLES -- Start
-//*****************************************************************************
+
 extern void (* const g_pfnVectors[])(void);
 
 volatile unsigned long SW2_intcount;
@@ -69,6 +52,10 @@ volatile unsigned char SW3_intflag;
 volatile unsigned long timerCount;
 static volatile unsigned long g_ulBase;
 char* outMessage;
+
+    //letters is a 2D matrix, where the rows correspond to the button number and the column corresponds
+    // to count, or how many times a button was pressed - to account for multiple letters assigned to 
+    // a button
 char letters[10][5] =
         { { ' ', ' ', ' ', ' ', ' ' }, { '1', '1', '1', '1', '1' }, { 'A', 'B',
                                                                       'C', '2',
@@ -81,33 +68,24 @@ char letters[10][5] =
                                                                       'T' },
           { 'W', 'X', 'Y', 'Z', '9' } };
 
-//*****************************************************************************
-//                 GLOBAL VARIABLES -- End
-//*****************************************************************************
-
-// an example of how you can use structs to organize your pin settings for easier maintenance
-typedef struct PinSetting
-{
-    unsigned long port;
-    unsigned int pin;
-} PinSetting;
-
-static PinSetting switch2 = { .port = GPIOA2_BASE, .pin = 0x40 };
-
-//*****************************************************************************
-//                      LOCAL FUNCTION PROTOTYPES                           
-//*****************************************************************************
 static void BoardInit(void);
 
 //*****************************************************************************
 //                      LOCAL FUNCTION DEFINITIONS                         
 //*****************************************************************************
+
+
+//
 static void TimerIntHandler()
 {
     Timer_IF_InterruptClear(TIMERA2_BASE);
     timerCount++;
 }
 
+
+/*
+    GPIO Interrupt Handler, called on rising AND falling edges
+*/
 static void GPIOA1IntHandler(void)
 { // SW3 handler
     unsigned long ulStatus;
@@ -118,22 +96,22 @@ static void GPIOA1IntHandler(void)
     SW3_intflag = 1;
 }
 
+/*
+    UART Interrupt Handler, called once the message string has been pushed into the UART buffer
+    Reads and displays the incoming message.
+*/
 static void UARTIntHandler(void)
 {
-    printf("Inside handler\n\r");
     UARTIntDisable(UARTA1_BASE,UART_INT_RX);
     UARTIntClear(UARTA1_BASE, UART_INT_RX);
-    printf("before loop\n");
+    //Until UART buffer is empty
     while (UARTCharsAvail(UARTA1_BASE))
     {
-        printf("inside loop\n");
         char sChar = UARTCharGet(UARTA1_BASE);
         printf("%c\n", sChar);
         if (sChar != '\0')
         {
-            printf("%d\n", strlen(outMessage));
             outMessage[strlen(outMessage)] = sChar;
-            printf("%s:not null character\n", outMessage);
         }
 
     }
@@ -142,13 +120,11 @@ static void UARTIntHandler(void)
     setCursor(0, 63);
     Outstr(outMessage);
     setCursor(0, 0);
-    printf("%s \n", outMessage);
     int i = 0;
     for (i = strlen(outMessage); i > 0; i--)
     {
         outMessage[i - 1] = '\0';
     }
-    printf("%d\n", strlen(outMessage));
     UARTIntEnable(UARTA1_BASE,UART_INT_RX);
 }
 
@@ -172,17 +148,11 @@ static void BoardInit(void)
 
     PRCMCC3200MCUInit();
 }
-//****************************************************************************
-//
-//! Main function
-//!
-//! \param none
-//! 
-//!
-//! \return None.
-//
-//****************************************************************************
 
+/*
+    Function to decode the bit pattern from a button press
+    num: the bit pattern read in by the IR receiver
+*/
 int decode(int num)
 {
     int button;
@@ -241,8 +211,14 @@ int decode(int num)
     return button;
 }
 
+/*
+    Translate the pressed button into a character, based on how many times the button is pressed 
+    num: button number
+    count: number of times the button was pressed
+*/
 char textTranslate(int num, int count)
 {
+    //To account for the fact that 7 and 9 have 5 characters assigned to them instead of 4
     if (num != 7 && num != 9)
     {
         return letters[num][count % 4];
@@ -255,6 +231,7 @@ char textTranslate(int num, int count)
 
 int main()
 {
+    // Boilerplate 
     unsigned long ulStatus;
 
     BoardInit();
@@ -270,12 +247,14 @@ int main()
 
     g_ulBase = TIMERA2_BASE;
 
+    //Max message size is 512 characters
     outMessage = (char*) malloc(sizeof(char) * 512);
     int i = 0;
     for(i = 0; i < 512; i++){
         outMessage[i] = '\0';
     }
-    //Report("Test1\n\r");
+
+    //Set Up UART
     UARTIntRegister(UARTA1_BASE, UARTIntHandler);
     UARTIntClear(UARTA1_BASE, UART_INT_RX);
     UARTIntEnable(UARTA1_BASE, UART_INT_RX);
@@ -284,22 +263,22 @@ int main()
     UARTConfigSetExpClk(UARTA1_BASE, PRCMPeripheralClockGet(PRCM_UARTA1), 115200,
                         (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
                         UART_CONFIG_PAR_NONE));
-    //UARTEnable(UARTA1_BASE);
-    //Report("Test2\n\r");
+    
     //
-    // Register the interrupt handlers
+    // Register the interrupt handler
     //
     MAP_GPIOIntRegister(GPIOA3_BASE, GPIOA1IntHandler);
     TimerIntRegister(TIMERA2_BASE, TIMER_A, TimerIntHandler);
+    
     TimerConfigure(TIMERA2_BASE,
                    (TIMER_CFG_SPLIT_PAIR | TIMER_CFG_A_PERIODIC_UP));
 
     //
-    // Configure rising edge interrupts on SW2 and SW3
+    // Configure both edge interrupts on IR Receiver pin
     //
-    MAP_GPIOIntTypeSet(GPIOA3_BASE, 0x40, GPIO_BOTH_EDGES); // SW3
+    MAP_GPIOIntTypeSet(GPIOA3_BASE, 0x40, GPIO_BOTH_EDGES);
     ulStatus = MAP_GPIOIntStatus(GPIOA3_BASE, false);
-    MAP_GPIOIntClear(GPIOA3_BASE, ulStatus);       // clear interrupts on GPIOA1
+    MAP_GPIOIntClear(GPIOA3_BASE, ulStatus);       // clear interrupts on GPIOA3
 
     // clear global variables
     SW2_intcount = 0;
@@ -333,15 +312,15 @@ int main()
     GPIOPinWrite(GPIOA1_BASE, 0x1, 0x1);
     Adafruit_Init();
 
-    // Enable SW2 and SW3 interrupts
+    // Enable GPIO interrupt
     MAP_GPIOIntEnable(GPIOA3_BASE, 0x40);
 
-//    Timer_IF_Init(PRCM_TIMERA0, g_ulBase, TIMER_CFG_PERIODIC, TIMER_A, 0);
-//    Timer_IF_IntSetup(g_ulBase, TIMER_A, TimerIntHandler);
     TimerLoadSet(TIMERA2_BASE, TIMER_A, 0x1F40);
     TimerIntEnable(TIMERA2_BASE, TIMER_TIMA_TIMEOUT);
 
+    //Enable the Timer
     TimerEnable(TIMERA2_BASE, TIMER_A);
+
     int num = 0;
     int buttonPressStart = 0;
     int buttonPressEnd = 0;
@@ -351,17 +330,21 @@ int main()
     int prevButton = 13;
     int sep = 0;
     char* message = (char*) malloc(sizeof(char) * 512);
+
+    //Clearing the malloc'd memory to ensure no garbage values in string
     for (i = 0; i < 512; i++)
     {
         message[i] = '\0';
     }
+
     int msgLength = 0;
     int buttonIdx = 0;
     fillScreen(BLACK);
     setTextColor(WHITE, BLACK);
 
     while (1)
-    {
+    {   
+        //Waiting until GPIO interrupt hits
         while ((SW3_intflag == 0))
         {
             ;
@@ -371,74 +354,73 @@ int main()
             SW3_intflag = 0;  // clear flag
             //falling 
             //Report("Button pressed: %d\r\n", timerCount);
+
+            //starting edge of the pulse 
             if (wStart == 0)
             {
                 wStart = timerCount;
                 if (buttonPressEnd == 1)
                 {
-                    buttonPressStart = wStart;
+                    buttonPressStart = wStart; // record the pulse start time
                 }
             }
             else
             {
-                //Report("%d\n\r", timerCount);
                 long wEnd = timerCount;
                 unsigned long tlength = wEnd - wStart;
-                //Report("%d\n\r\n\r", timerCount);
-//                  if(tlength >= 200){
-//                      //Report("Signal buttonPressEnd: %d, %d\r\n", wStart, wEnd);
-//                        wStart = wEnd;
-//                        pressEndTime = wEnd;
-//                        buttonPressEnd = 1;
-//                  }
+
+                //detecting long preamble pulse
                 if (tlength >= 80)
                 {
-                    //Report("\n\r\n\r");
-                    //Report("Signal start: %d, %d\r\n", wStart, wEnd);
-                    wStart = wEnd;
-                    bitcount = 0;
+                    wStart = wEnd; //don't reset pulse because preamble pulse has 3 edges
+                    bitcount = 0;   //reset the bit count in case of a new button press
+                    
+                    //Check for signal repetition
                     if (buttonPressEnd == 1)
                     {
-                        pressEndTime = wEnd;
+                        pressEndTime = wEnd;  //record timing of the end of the button press
+                        //Enough time between prev signal and new one for new one not to be a repeat
                         if (pressEndTime - buttonPressStart > 500)
                         {
                             buttonPressEnd = 0;
-                            prevButton = button;
+                            prevButton = button; // save the previously detected button
                             sep = 0;
                         }
+                        //Enough time between prev signal and new one to record fresh character
                         if (pressEndTime - buttonPressStart > 10000)
                         {
                             sep = 1;
                         }
                     }
                 }
+                //second half of preamble pulse
                 else if (tlength >= 39)
                 {  //next signal will be bit
-                   //Report("Signal intermediate: %d, %d\r\n", wStart, wEnd);
                     wStart = 0;
                 }
+                //Detect bit value 1 
                 else if ((tlength >= 10))
                 {  //
-                    num *= 2;
-                    num += 1;
-                    //Report("1\r\n");
+                    num *= 2;  //shift current num value right by 1
+                    num += 1;   //set last bit to 1
                     wStart = 0;
                     bitcount++;
                 }
+                //Detect bit value 0
                 else if ((tlength >= 4))
                 {
                     num *= 2;
-                    //Report("0\r\n");
                     wStart = 0;
                     bitcount++;
                 }
             }
             if (bitcount == 16)
             {
-                //Report("Test3\n\r");
+                //The signal is not a repetition
                 if (buttonPressEnd == 0)
                 {
                     button = decode(num);
+                    //Repeated button press
                     if (prevButton == button && button != -1)
                     {
                         if (sep == 0)
@@ -454,6 +436,7 @@ int main()
                             }
                             else
                             {
+                                //Deleting characters
                                 if (button == 10 && (strlen(message)) > 0)
                                 {
                                     int len = strlen(message);
@@ -465,6 +448,7 @@ int main()
                                     Outstr(message);
                                     setCursor(0, 0);
                                 }
+                                //Enter key press, sending message to UART
                                 else if (button == 11 && (strlen(message)) > 0)
                                 {
                                     int i = 0;
@@ -472,12 +456,13 @@ int main()
                                     {
                                         UARTCharPut(UARTA1_BASE ,message[i]);
                                     }
-
+                                    //UART Interrupt triggered here
                                 }
                             }
                         }
                         else
                         {
+                            //Add character to end of string
                             if (button >= 0 && button < 10)
                             {
                                 int len = strlen(message);
@@ -512,6 +497,7 @@ int main()
                         }
 
                     }
+                    //Different button pressed
                     else if (prevButton != button && button != -1)
                     {
                         buttonIdx = 0;
@@ -556,10 +542,6 @@ int main()
                 bitcount = 0;
                 num = 0;
             }
-            //if((buttonPressEnd > 0) && (timerCount - buttonPressEnd < )){
-
-            //}
-
         }
     }
 }
