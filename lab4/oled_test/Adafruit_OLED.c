@@ -61,7 +61,6 @@ void writeData(unsigned char c) {
 
          GPIOPinWrite(GPIOA1_BASE, 0x1, 0x0);
 
-
          MAP_SPIDataPut(GSPI_BASE,c);
          MAP_SPIDataGet(GSPI_BASE,&ulDummy);
 

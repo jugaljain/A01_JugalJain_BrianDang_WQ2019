@@ -70,6 +70,10 @@
 #include "gpio.h"
 #include "spi.h"
 #include "timer.h"
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <math.h>
 
 // Common interface include
 #include "uart_if.h"
@@ -100,13 +104,14 @@ extern uVectorEntry __vector_table;
 //                 GLOBAL VARIABLES -- End
 //*****************************************************************************
 
-int coeff[8] = { 31548, 31281, 30950, 30556, 29143, 28360, 27409, 26258 }; // array to store the calculated coefficients
-int f_tone[8] = { 697, 770, 852, 941, 1209, 1336, 1477, 1633 }; // frequencies of rows & columns
+int coeff[7] = { 31548, 31281, 30950, 30556, 29143, 28360, 27409}; // array to store the calculated coefficients
+int f_tone[7] = { 697, 770, 852, 941, 1209, 1336, 1477}; // frequencies of rows & columns
 volatile int samples[410];
 volatile int count;             // samples count
 volatile bool flag;             // flag set when the samples buffer is full with N samples
 volatile bool new_dig;          // flag set when inter-digit interval (pause) is detected
 int power_all[8];
+volatile unsigned long timerCount;
 //*****************************************************************************
 //                      LOCAL DEFINITION                                   
 //*****************************************************************************
@@ -132,30 +137,53 @@ static void DisplayBanner(char * AppName)
 
 static void TimerIntHandler()
 {
+    printf("Timer interrupt %d\n", timerCount);
     Timer_IF_InterruptClear(TIMERA2_BASE);
     timerCount++;
 }
 
 static void TimerIntSampleHandler()
 {
-    unsigned long* ADC;
+    //printf("Sampler interrupt %d\n", count);
+    unsigned char a = 0;
+    unsigned char b = 0;
+    unsigned char ADCm[2];
+    unsigned char* ADCl = &b;
+    unsigned long ADC = 0;
+    unsigned char ulDummy = 0;
     Timer_IF_InterruptClear(TIMERA2_BASE);
+    MAP_SPICSEnable(GSPI_BASE);
     GPIOPinWrite(GPIOA0_BASE, 0x1, 0x0); //turn ADC CS to low
-    SPIDataGet(GSPI_BASE, ADC);
-
+    //printf("Testing data get\n");
+//    SPIDataPut(GSPI_BASE, ulDummy);
+//    SPIDataGet(GSPI_BASE, ADCm);
+//    SPIDataPut(GSPI_BASE, ulDummy);
+//    SPIDataGet(GSPI_BASE, ADCl);
+//    SPITransfer(GSPI_BASE, 0, ADCm, 0x1, SPI_CS_ENABLE);
+//    SPITransfer(GSPI_BASE, 0, ADCl, 0x1, SPI_CS_DISABLE);
+    SPITransfer(GSPI_BASE, 0, ADCm, 0x2, SPI_CS_DISABLE);
+    //printf("Tested\n");
     if (count < 410){
-        samples[count++] = *ADC>>2;
-
+        ADC = ADCm[1] & 0x1f;
+        ADCm[0] = ADCm[0] & 0xf8;
+        ADCm[0] = ADCm[0] >> 3;
+        ADC = (ADC << 5) | ADCm[0];
+        //ADC = ADC & 0x1FF8;
+        samples[count++] = ADC - 388;
     }
     else if (count == 410){
         flag = 1;
+        //count = 0;
+        TimerDisable(TIMERA2_BASE, TIMER_B);
+        TimerIntDisable(TIMERA2_BASE, TIMER_TIMB_TIMEOUT);
+        Timer_IF_InterruptClear(TIMERA2_BASE);
     }
     GPIOPinWrite(GPIOA0_BASE, 0x1, 0x1);
-
+    MAP_SPICSDisable(GSPI_BASE);
 }
 
 //-------Goertzel function---------------------------------------//
-long int goertzel(int sample[], long int coeff, int N)
+long int goertzel(long int coeff, int N)
 //---------------------------------------------------------------//
 {
 //initialize variables to be used in the function
@@ -168,7 +196,7 @@ long int goertzel(int sample[], long int coeff, int N)
 
     for (i=0; i<N; i++) // loop N times and calculate Q, Q_prev, Q_prev2 at each iteration
         {
-            Q = (sample[i]) + ((coeff* Q_prev)>>14) - (Q_prev2); // >>14 used as the coeff was used in Q15 format
+            Q = (samples[i]) + ((coeff* Q_prev)>>14) - (Q_prev2); // >>14 used as the coeff was used in Q15 format
             Q_prev2 = Q_prev;                                    // shuffle delay elements
             Q_prev = Q;
         }
@@ -215,6 +243,49 @@ static void BoardInit(void)
     PRCMCC3200MCUInit();
 }
 
+void findNum()
+{
+    char row_col[4][3] = // array with the order of the digits in the DTMF system
+            { { '1', '2', '3'}, { '4', '5', '6'}, { '7', '8', '9'}, { '*', '0', '#'} };
+
+    // find the maximum power in the row frequencies and the row number
+
+    int max_power = 0;            //initialize max_power=0
+    int i = 0;
+    int row;
+    int col;
+    for (i = 0; i < 4; i++)   //loop 4 times from 0>3 (the indecies of the rows)
+    {
+        if (power_all[i] > max_power) //if power of the current row frequency > max_power
+        {
+            max_power = power_all[i]; //set max_power as the current row frequency
+            row = i;                      //update row number
+        }
+    }
+
+    // find the maximum power in the column frequencies and the column number
+
+    max_power = 0;            //initialize max_power=0
+
+    for (i = 4; i < 7; i++) //loop 4 times from 4>7 (the indecies of the columns)
+    {
+        if (power_all[i] > max_power) //if power of the current column frequency > max_power
+        {
+            max_power = power_all[i]; //set max_power as the current column frequency
+            col = i;                      //update column number
+        }
+    }
+
+//    if (power_all[col] <= 40000 && power_all[row] == 0) //if the maximum powers equal zero > this means no signal or inter-digit pause
+//        new_dig = 1;        //set new_dig to 1 to display the next decoded digit
+
+    if ((power_all[col] > 250000 && power_all[row] > 250000)) //&& (new_dig == 1)) // check if maximum powers of row & column exceed certain threshold AND new_dig flag is set to 1
+    {
+        printf("%c\n", row_col[row][col - 4]);
+        new_dig = 0; // set new_dig to 0 to avoid displaying the same digit again.
+    }
+}
+
 //*****************************************************************************
 //
 //! Main function handling the uart echo. It takes the input string from the
@@ -244,16 +315,14 @@ void main()
 
     MAP_PRCMPeripheralClkEnable(PRCM_GSPI, PRCM_RUN_MODE_CLK);
 
-    g_ulBase = TIMERA2_BASE;
-
-    outMessage = (char*) malloc(sizeof(char) * 512);
+    //outMessage = (char*) malloc(sizeof(char) * 512);
     int i = 0;
-    for (i = 0; i < 512; i++)
-    {
-        outMessage[i] = '\0';
-    }
+//    for (i = 0; i < 512; i++)
+//    {
+//        outMessage[i] = '\0';
+//    }
     //Report("Test1\n\r");
-    UARTIntRegister(UARTA1_BASE, UARTIntHandler);
+    //UARTIntRegister(UARTA1_BASE, UARTIntHandler);
     UARTIntClear(UARTA1_BASE, UART_INT_RX);
     UARTIntEnable(UARTA1_BASE, UART_INT_RX);
     UARTFIFOEnable(UARTA1_BASE);
@@ -280,10 +349,6 @@ void main()
 //    MAP_GPIOIntClear(GPIOA3_BASE, ulStatus);       // clear interrupts on GPIOA1
 
     // clear global variables
-    SW2_intcount = 0;
-    SW3_intcount = 0;
-    SW2_intflag = 0;
-    SW3_intflag = 0;
     long wStart = 0;
     timerCount = 0;
 
@@ -300,7 +365,7 @@ void main()
                            SPI_4PIN_MODE |
                            SPI_TURBO_OFF |
                            SPI_CS_ACTIVEHIGH |
-                           SPI_WL_8));
+                           SPI_WL_16));
 
     //
     // Enable SPI for communication
@@ -309,8 +374,9 @@ void main()
 
     //enable SPICS and OC to high
     MAP_SPICSEnable(GSPI_BASE);
+    GPIOPinWrite(GPIOA0_BASE, 0x1, 0x1);
     GPIOPinWrite(GPIOA1_BASE, 0x1, 0x1);
-    Adafruit_Init();
+    //Adafruit_Init();
 
     // Enable SW2 and SW3 interrupts
     //MAP_GPIOIntEnable(GPIOA3_BASE, 0x40);
@@ -318,32 +384,36 @@ void main()
     //    Timer_IF_Init(PRCM_TIMERA0, g_ulBase, TIMER_CFG_PERIODIC, TIMER_A, 0);
     //    Timer_IF_IntSetup(g_ulBase, TIMER_A, TimerIntHandler);
     TimerLoadSet(TIMERA2_BASE, TIMER_A, 0x1F40);
-    TimerIntEnable(TIMERA2_BASE, TIMER_TIMA_TIMEOUT);
+    //TimerIntEnable(TIMERA2_BASE, TIMER_TIMA_TIMEOUT);
 
-    TimerEnable(TIMERA2_BASE, TIMER_A);
+    //TimerEnable(TIMERA2_BASE, TIMER_A);
 
-    TimerLoadSet(TIMERA2_BASE, TIMER_B, 0x1388);
-    TimerIntEnable(TIMERA2_BASE, TIMER_TIMB_TIMEOUT);
+    //TimerLoadSet(TIMERA2_BASE, TIMER_B, 0x1388);
+    //TimerIntEnable(TIMERA2_BASE, TIMER_TIMB_TIMEOUT);
 
-    TimerEnable(TIMERA2_BASE, TIMER_B);
+    //TimerEnable(TIMERA2_BASE, TIMER_B);
     GPIOPinWrite(GPIOA0_BASE, 0x1, 0x1);
-
     while (1)
     {
+        count=0;  //reset count
+        flag=0;   //reset flag
+        i = 0;
+        TimerLoadSet(TIMERA2_BASE, TIMER_B, 0x1388);
+        TimerValueSet(TIMERA2_BASE, TIMER_B, 0x0);
+        TimerIntEnable(TIMERA2_BASE, TIMER_TIMB_TIMEOUT);
+        Timer_IF_InterruptClear(TIMERA2_BASE);
+        TimerEnable(TIMERA2_BASE, TIMER_B);
         //GPIOPinWrite(GPIOA0_BASE, 0x1, 0x0);
-        count=0;  //rest count
-              flag=0;   //reset flag
 
-            while(flag==0); // wait till N samples are read in the buffer and the flag set by the ADC ISR
+        //while sampling
+        while(flag==0); // wait till N samples are read in the buffer and the flag set by the ADC ISR
 
-                {
-                    for (i=0;i<8;i++)
-                        power_all[i]=goertzel(samples, coeff[i], N); // call goertzel to calculate the power at each frequency and store it in the power_all array
-
-
-                }
-
-            }
+        for (i=0;i<7;i++){
+            power_all[i]=goertzel(coeff[i], 410); // call goertzel to calculate the power at each frequency and store it in the power_all array
+            //printf("%d, ", power_all[i]);
+        }
+        //printf("\n");
+        findNum();
     }
 }
 

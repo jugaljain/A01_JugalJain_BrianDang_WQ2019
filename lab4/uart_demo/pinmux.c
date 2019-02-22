@@ -142,7 +142,7 @@ void PinMuxConfig(void)
     GPIODirModeSet(GPIOA0_BASE, 0x80, GPIO_DIR_MODE_OUT);
 
     //
-    // Configure PIN_63 for GPIO Input OC
+    // Configure PIN_63 for GPIO Output OC
     //
     PinTypeGPIO(PIN_63, PIN_MODE_0, false);
     GPIODirModeSet(GPIOA1_BASE, 0x1, GPIO_DIR_MODE_OUT);
