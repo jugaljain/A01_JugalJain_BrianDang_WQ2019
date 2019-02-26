@@ -1,56 +1,22 @@
 //*****************************************************************************
-//
-// Copyright (C) 2014 Texas Instruments Incorporated - http://www.ti.com/ 
-// 
-// 
-//  Redistribution and use in source and binary forms, with or without 
-//  modification, are permitted provided that the following conditions 
-//  are met:
-//
-//    Redistributions of source code must retain the above copyright 
-//    notice, this list of conditions and the following disclaimer.
-//
-//    Redistributions in binary form must reproduce the above copyright
-//    notice, this list of conditions and the following disclaimer in the 
-//    documentation and/or other materials provided with the   
-//    distribution.
-//
-//    Neither the name of Texas Instruments Incorporated nor the names of
-//    its contributors may be used to endorse or promote products derived
-//    from this software without specific prior written permission.
-//
-//  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
-//  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
-//  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-//  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
-//  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
-//  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
-//  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-//  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-//  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-//  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-//  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
+// Students: Brian Dang, Jugal Jain
 //*****************************************************************************
 
 //*****************************************************************************
 //
-// Application Name     - UART Demo
-// Application Overview - The objective of this application is to showcase the 
-//                        use of UART. The use case includes getting input from 
-//                        the user and display information on the terminal. This 
-//                        example take a string as input and display the same 
-//                        when enter is received.
+// Application Name     - Phone Texting
+// Application Overview - Sends text between two boards using DTMF Frequencies
 // Application Details  -
-// http://processors.wiki.ti.com/index.php/CC32xx_UART_Demo_Application
+// http://processors.wiki.ti.com/index.php/CC32xx_SPI_Demo
 // or
-// docs\examples\CC32xx_UART_Demo_Application.pdf
+// docs\examples\CC32xx_SPI_Demo.pdf
 //
 //*****************************************************************************
 
+
 //*****************************************************************************
 //
-//! \addtogroup uart_demo
+//! \addtogroup SPI_Demo
 //! @{
 //
 //*****************************************************************************
@@ -74,10 +40,21 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 
 // Common interface include
 #include "uart_if.h"
 #include "timer_if.h"
+
+// Color definitions
+#define BLACK           0x0000
+#define BLUE            0x001F
+#define GREEN           0x07E0
+#define CYAN            0x07FF
+#define RED             0xF800
+#define MAGENTA         0xF81F
+#define YELLOW          0xFFE0
+#define WHITE           0xFFFF
 
 //*****************************************************************************
 //                          MACROS                                  
@@ -109,9 +86,22 @@ int f_tone[7] = { 697, 770, 852, 941, 1209, 1336, 1477}; // frequencies of rows 
 volatile int samples[410];
 volatile int count;             // samples count
 volatile bool flag;             // flag set when the samples buffer is full with N samples
-volatile bool new_dig;          // flag set when inter-digit interval (pause) is detected
+volatile bool new_dig = 1;          // flag set when inter-digit interval (pause) is detected
 int power_all[8];
 volatile unsigned long timerCount;
+char* outMessage;
+char letters[10][5] =
+        { { ' ', '0', ' ', '0', ' ' }, { '1', '1', '1', '1', '1' }, { 'A', 'B',
+                                                                      'C', '2',
+                                                                      'A' },
+          { 'D', 'E', 'F', '3', 'D' }, { 'G', 'H', 'I', '4', 'G' }, { 'J', 'K',
+                                                                      'L', '5',
+                                                                      'J' },
+          { 'M', 'N', 'O', '6', 'M' }, { 'P', 'Q', 'R', 'S', '7' }, { 'T', 'U',
+                                                                      'V', '8',
+                                                                      'T' },
+          { 'W', 'X', 'Y', 'Z', '9' } };
+
 //*****************************************************************************
 //                      LOCAL DEFINITION                                   
 //*****************************************************************************
@@ -137,7 +127,6 @@ static void DisplayBanner(char * AppName)
 
 static void TimerIntHandler()
 {
-    printf("Timer interrupt %d\n", timerCount);
     Timer_IF_InterruptClear(TIMERA2_BASE);
     timerCount++;
 }
@@ -147,28 +136,21 @@ static void TimerIntSampleHandler()
     //printf("Sampler interrupt %d\n", count);
     unsigned char a = 0;
     unsigned char b = 0;
-    unsigned char ADCm[2];
+    unsigned char* ADCm = &a;
     unsigned char* ADCl = &b;
     unsigned long ADC = 0;
     unsigned char ulDummy = 0;
     Timer_IF_InterruptClear(TIMERA2_BASE);
     MAP_SPICSEnable(GSPI_BASE);
     GPIOPinWrite(GPIOA0_BASE, 0x1, 0x0); //turn ADC CS to low
-    //printf("Testing data get\n");
-//    SPIDataPut(GSPI_BASE, ulDummy);
-//    SPIDataGet(GSPI_BASE, ADCm);
-//    SPIDataPut(GSPI_BASE, ulDummy);
-//    SPIDataGet(GSPI_BASE, ADCl);
-//    SPITransfer(GSPI_BASE, 0, ADCm, 0x1, SPI_CS_ENABLE);
-//    SPITransfer(GSPI_BASE, 0, ADCl, 0x1, SPI_CS_DISABLE);
-    SPITransfer(GSPI_BASE, 0, ADCm, 0x2, SPI_CS_DISABLE);
-    //printf("Tested\n");
+    SPITransfer(GSPI_BASE, 0, ADCm, 0x1, SPI_CS_ENABLE);//get most signifigant and least signifigant byte
+    SPITransfer(GSPI_BASE, 0, ADCl, 0x1, SPI_CS_DISABLE);
+    //sample for 410 and adjust bits
     if (count < 410){
-        ADC = ADCm[1] & 0x1f;
-        ADCm[0] = ADCm[0] & 0xf8;
-        ADCm[0] = ADCm[0] >> 3;
-        ADC = (ADC << 5) | ADCm[0];
-        //ADC = ADC & 0x1FF8;
+        ADC = *ADCm & 0x1f;
+        *ADCl = *ADCl & 0xf8;
+        *ADCl = *ADCl >> 3;
+        ADC = (ADC << 5) | *ADCl;
         samples[count++] = ADC - 388;
     }
     else if (count == 410){
@@ -180,6 +162,32 @@ static void TimerIntSampleHandler()
     }
     GPIOPinWrite(GPIOA0_BASE, 0x1, 0x1);
     MAP_SPICSDisable(GSPI_BASE);
+}
+
+static void UARTIntHandler(void)
+{
+    UARTIntDisable(UARTA1_BASE,UART_INT_RX);
+    UARTIntClear(UARTA1_BASE, UART_INT_RX);
+    while (UARTCharsAvail(UARTA1_BASE))
+    {
+        char sChar = UARTCharGet(UARTA1_BASE);
+        if (sChar != '\0')
+        {
+            outMessage[strlen(outMessage)] = sChar;
+        }
+
+    }
+    outMessage[strlen(outMessage)] = '\0';
+    fillRect(0, 63, 128, 7, BLACK);
+    setCursor(0, 63);
+    Outstr(outMessage);
+    setCursor(0, 0);
+    int i = 0;
+    for (i = strlen(outMessage); i > 0; i--)
+    {
+        outMessage[i - 1] = '\0';
+    }
+    UARTIntEnable(UARTA1_BASE,UART_INT_RX);
 }
 
 //-------Goertzel function---------------------------------------//
@@ -243,7 +251,77 @@ static void BoardInit(void)
     PRCMCC3200MCUInit();
 }
 
-void findNum()
+int decode(char num)
+{
+    int button;
+    if (num == '0')
+    {
+        button = 0;
+    }
+    else if (num == '1')
+    {
+        button = 1;
+    }
+    else if (num == '2')
+    {
+        button = 2;
+    }
+    else if (num == '3')
+    {
+        button = 3;
+    }
+    else if (num == '4')
+    {
+        button = 4;
+    }
+    else if (num == '5')
+    {
+        button = 5;
+    }
+    else if (num == '6')
+    {
+        button = 6;
+    }
+    else if (num == '7')
+    {
+        button = 7;
+    }
+    else if (num == '8')
+    {
+        button = 8;
+    }
+    else if (num == '9')
+    {
+        button = 9;
+    }
+    else if (num == '*')
+    {
+        button = 10;
+    }
+    else if (num == '#')
+    {
+        button = 11;
+    }
+    else
+    {
+        button = -1;
+    }
+    return button;
+}
+
+char textTranslate(int num, int count)
+{
+    if (num != 7 && num != 9)
+    {
+        return letters[num][count % 4];
+    }
+    else
+    {
+        return letters[num][count % 5];
+    }
+}
+
+char findNum()
 {
     char row_col[4][3] = // array with the order of the digits in the DTMF system
             { { '1', '2', '3'}, { '4', '5', '6'}, { '7', '8', '9'}, { '*', '0', '#'} };
@@ -276,14 +354,16 @@ void findNum()
         }
     }
 
-//    if (power_all[col] <= 40000 && power_all[row] == 0) //if the maximum powers equal zero > this means no signal or inter-digit pause
-//        new_dig = 1;        //set new_dig to 1 to display the next decoded digit
+    if (power_all[col] <= 40000 && power_all[row] <= 40000) //if the maximum powers equal zero > this means no signal or inter-digit pause
+        new_dig = 1;        //set new_dig to 1 to display the next decoded digit
 
-    if ((power_all[col] > 250000 && power_all[row] > 250000)) //&& (new_dig == 1)) // check if maximum powers of row & column exceed certain threshold AND new_dig flag is set to 1
+    if ((power_all[col] > 150000 && power_all[row] > 150000) && (new_dig == 1)) // check if maximum powers of row & column exceed certain threshold AND new_dig flag is set to 1
     {
-        printf("%c\n", row_col[row][col - 4]);
+        //printf("%c,\n", row_col[row][col - 4]);
         new_dig = 0; // set new_dig to 0 to avoid displaying the same digit again.
+        return row_col[row][col - 4];
     }
+    return '~';
 }
 
 //*****************************************************************************
@@ -315,14 +395,14 @@ void main()
 
     MAP_PRCMPeripheralClkEnable(PRCM_GSPI, PRCM_RUN_MODE_CLK);
 
-    //outMessage = (char*) malloc(sizeof(char) * 512);
+    outMessage = (char*) malloc(sizeof(char) * 512);
     int i = 0;
-//    for (i = 0; i < 512; i++)
-//    {
-//        outMessage[i] = '\0';
-//    }
+    for (i = 0; i < 512; i++)
+    {
+        outMessage[i] = '\0';
+    }
     //Report("Test1\n\r");
-    //UARTIntRegister(UARTA1_BASE, UARTIntHandler);
+    UARTIntRegister(UARTA1_BASE, UARTIntHandler);
     UARTIntClear(UARTA1_BASE, UART_INT_RX);
     UARTIntEnable(UARTA1_BASE, UART_INT_RX);
     UARTFIFOEnable(UARTA1_BASE);
@@ -365,7 +445,7 @@ void main()
                            SPI_4PIN_MODE |
                            SPI_TURBO_OFF |
                            SPI_CS_ACTIVEHIGH |
-                           SPI_WL_16));
+                           SPI_WL_8));
 
     //
     // Enable SPI for communication
@@ -376,7 +456,7 @@ void main()
     MAP_SPICSEnable(GSPI_BASE);
     GPIOPinWrite(GPIOA0_BASE, 0x1, 0x1);
     GPIOPinWrite(GPIOA1_BASE, 0x1, 0x1);
-    //Adafruit_Init();
+    Adafruit_Init();
 
     // Enable SW2 and SW3 interrupts
     //MAP_GPIOIntEnable(GPIOA3_BASE, 0x40);
@@ -384,15 +464,29 @@ void main()
     //    Timer_IF_Init(PRCM_TIMERA0, g_ulBase, TIMER_CFG_PERIODIC, TIMER_A, 0);
     //    Timer_IF_IntSetup(g_ulBase, TIMER_A, TimerIntHandler);
     TimerLoadSet(TIMERA2_BASE, TIMER_A, 0x1F40);
-    //TimerIntEnable(TIMERA2_BASE, TIMER_TIMA_TIMEOUT);
+    TimerIntEnable(TIMERA2_BASE, TIMER_TIMA_TIMEOUT);
 
-    //TimerEnable(TIMERA2_BASE, TIMER_A);
+    TimerEnable(TIMERA2_BASE, TIMER_A);
 
     //TimerLoadSet(TIMERA2_BASE, TIMER_B, 0x1388);
     //TimerIntEnable(TIMERA2_BASE, TIMER_TIMB_TIMEOUT);
 
     //TimerEnable(TIMERA2_BASE, TIMER_B);
     GPIOPinWrite(GPIOA0_BASE, 0x1, 0x1);
+    unsigned char dummy = '\0';
+    int dStart = 0;
+    int dEnd = 0;
+    int button;
+    int prevButton = -1;
+    int presses = 0;
+    char* message = malloc(sizeof(char) * 512);
+    for(i = 0; i < 512; i++){
+        message[i] = '\0';
+    }
+    i = 0;
+    fillScreen(BLACK);
+    setTextColor(WHITE, BLACK);
+
     while (1)
     {
         count=0;  //reset count
@@ -401,19 +495,92 @@ void main()
         TimerLoadSet(TIMERA2_BASE, TIMER_B, 0x1388);
         TimerValueSet(TIMERA2_BASE, TIMER_B, 0x0);
         TimerIntEnable(TIMERA2_BASE, TIMER_TIMB_TIMEOUT);
-        Timer_IF_InterruptClear(TIMERA2_BASE);
+        //Timer_IF_InterruptClear(TIMERA2_BASE);
         TimerEnable(TIMERA2_BASE, TIMER_B);
         //GPIOPinWrite(GPIOA0_BASE, 0x1, 0x0);
 
         //while sampling
         while(flag==0); // wait till N samples are read in the buffer and the flag set by the ADC ISR
-
         for (i=0;i<7;i++){
             power_all[i]=goertzel(coeff[i], 410); // call goertzel to calculate the power at each frequency and store it in the power_all array
-            //printf("%d, ", power_all[i]);
         }
-        //printf("\n");
-        findNum();
+        //turn character into letters
+        char c = findNum();
+        button = decode(c);
+        if(c != '~' && button < 10){
+            //starting time
+            if(dStart == 0){
+                dStart = timerCount;
+                message[strlen(message)] = textTranslate(button, 0);
+            }
+            //else not start
+            else
+            {
+                //set dEnd = timeCount to measure the time between last button press
+                dEnd = timerCount;
+                //if > 10000 then its a new button
+                if (dEnd - dStart > 10000)
+                {
+                    presses = 0;
+                    dStart = 0;
+                    message[strlen(message)] = textTranslate(button, 0);
+                }
+                else if (dEnd - dStart > 500)
+                {
+                    presses++;
+                    dStart = dEnd;
+                    //check for multi tap
+                    if (prevButton == button)
+                    {
+                        message[strlen(message) - 1] = textTranslate(button,
+                                                                     presses);
+                    }
+                    else
+                    {
+                        message[strlen(message)] = textTranslate(button, 0);
+                    }
+
+                }
+            }
+            //send string to board after
+            printf("%s\n", message);
+            Outstr(message);
+            setCursor(0, 0);
+            prevButton = button;
+        }
+        else if (c != '~' && button >= 10 && (strlen(message)) >= 0)
+        {
+            //delete character if * and reprint string
+            if (button == 10 && (strlen(message)) > 0)
+            {
+                int len = strlen(message);
+                message[len - 1] = '\0';
+                fillRect(0, 0, 128, 7, BLACK);
+                setCursor(0, 0);
+                Outstr(message);
+                setCursor(0, 0);
+            }
+            //else put into UART
+            else if (button == 11 && (strlen(message)) >= 0)
+            {
+                int i = 0;
+                if (strlen(message) > 1)
+                {
+                    for (; i < strlen(message); i++)
+                    {
+                        UARTCharPut(UARTA1_BASE, message[i]);
+                    }
+                }
+                else{
+                    UARTCharPut(UARTA1_BASE, message[0]);
+                    UARTCharPut(UARTA1_BASE, '\0');
+                }
+
+            }
+            printf("%s\n", message);
+            prevButton = button;
+        }
+
     }
 }
 
