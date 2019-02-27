@@ -77,13 +77,11 @@ extern void (* const g_pfnVectors[])(void);
 #if defined(ewarm)
 extern uVectorEntry __vector_table;
 #endif
-//*****************************************************************************
-//                 GLOBAL VARIABLES -- End
-//*****************************************************************************
+
 
 int coeff[7] = { 31548, 31281, 30950, 30556, 29143, 28360, 27409}; // array to store the calculated coefficients
 int f_tone[7] = { 697, 770, 852, 941, 1209, 1336, 1477}; // frequencies of rows & columns
-volatile int samples[410];
+volatile int samples[410];       // Array to hold the samples collected from ADC
 volatile int count;             // samples count
 volatile bool flag;             // flag set when the samples buffer is full with N samples
 volatile bool new_dig = 1;          // flag set when inter-digit interval (pause) is detected
@@ -103,27 +101,12 @@ char letters[10][5] =
           { 'W', 'X', 'Y', 'Z', '9' } };
 
 //*****************************************************************************
+//                 GLOBAL VARIABLES -- End
+//*****************************************************************************
+
+//*****************************************************************************
 //                      LOCAL DEFINITION                                   
 //*****************************************************************************
-
-//*****************************************************************************
-//
-//! Application startup display on UART
-//!
-//! \param  none
-//!
-//! \return none
-//!
-//*****************************************************************************
-static void DisplayBanner(char * AppName)
-{
-
-    Report("\n\n\n\r");
-    Report("\t\t *************************************************\n\r");
-    Report("\t\t        CC3200 %s Application       \n\r", AppName);
-    Report("\t\t *************************************************\n\r");
-    Report("\n\n\n\r");
-}
 
 static void TimerIntHandler()
 {
@@ -131,6 +114,10 @@ static void TimerIntHandler()
     timerCount++;
 }
 
+/*
+    Sampler handler
+    Collects a single sample through SPI, called at a 16kHz rate
+*/
 static void TimerIntSampleHandler()
 {
     //printf("Sampler interrupt %d\n", count);
@@ -147,7 +134,8 @@ static void TimerIntSampleHandler()
     SPITransfer(GSPI_BASE, 0, ADCl, 0x1, SPI_CS_DISABLE);
     //sample for 410 and adjust bits
     if (count < 410){
-        ADC = *ADCm & 0x1f;
+        // bit masking to get ten valid bits from 16 read bits
+        ADC = *ADCm & 0x1f;   
         *ADCl = *ADCl & 0xf8;
         *ADCl = *ADCl >> 3;
         ADC = (ADC << 5) | *ADCl;
@@ -156,6 +144,7 @@ static void TimerIntSampleHandler()
     else if (count == 410){
         flag = 1;
         //count = 0;
+        //Stop collecting samples from ADC once the sample buffer count hits 410
         TimerDisable(TIMERA2_BASE, TIMER_B);
         TimerIntDisable(TIMERA2_BASE, TIMER_TIMB_TIMEOUT);
         Timer_IF_InterruptClear(TIMERA2_BASE);
@@ -219,15 +208,7 @@ long int goertzel(long int coeff, int N)
 
         return power;
 }
-//*****************************************************************************
-//
-//! Board Initialization & Configuration
-//!
-//! \param  None
-//!
-//! \return None
-//
-//*****************************************************************************
+
 static void BoardInit(void)
 {
     /* In case of TI-RTOS vector table is initialize by OS itself */
@@ -332,7 +313,7 @@ char findNum()
     int i = 0;
     int row;
     int col;
-    for (i = 0; i < 4; i++)   //loop 4 times from 0>3 (the indecies of the rows)
+    for (i = 0; i < 4; i++)   //loop 4 times from 0>3 (the indices of the rows)
     {
         if (power_all[i] > max_power) //if power of the current row frequency > max_power
         {
@@ -366,19 +347,6 @@ char findNum()
     return '~';
 }
 
-//*****************************************************************************
-//
-//! Main function handling the uart echo. It takes the input string from the
-//! terminal while displaying each character of string. whenever enter command 
-//! is received it will echo the string(display). if the input the maximum input
-//! can be of 80 characters, after that the characters will be treated as a part
-//! of next string.
-//!
-//! \param  None
-//!
-//! \return None
-//! 
-//*****************************************************************************
 void main()
 {
     char cString[MAX_STRING_LENGTH + 1];
