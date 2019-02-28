@@ -1244,7 +1244,7 @@ void main() {
                 if (dEnd - dStart > 10000)
                 {
                     presses = 0;
-                    dStart = 0;
+                    dStart = dEnd;
                     message[strlen(message)] = textTranslate(button, 0);
                 }
                 else if (dEnd - dStart > 500)
