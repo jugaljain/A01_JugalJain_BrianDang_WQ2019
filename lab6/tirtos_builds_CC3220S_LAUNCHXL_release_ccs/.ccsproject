@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<?ccsproject version="1.0"?>
+<projectOptions>
+	<ccsVersion value="8.3.0"/>
+	<deviceVariant value="Cortex M.CC3220S"/>
+	<deviceFamily value="TMS470"/>
+	<deviceEndianness value="little"/>
+	<codegenToolVersion value="18.1.4.LTS"/>
+	<isElfFormat value="true"/>
+	<connection value="common/targetdb/connections/TIXDS110_Connection.xml"/>
+	<createSlaveProjects value=""/>
+	<templateProperties value="id=tirtos_builds_CC3220S_LAUNCHXL_release_ccs.projectspec.tirtos_builds_CC3220S_LAUNCHXL_release_ccs,products=com.ti.SIMPLELINK_CC32XX_SDK,xdcToolsVersion=3_50_01_12_core,target=ti.targets.arm.elf.M4,platform=ti.platforms.simplelink:CC3220S,buildProfile=release"/>
+	<origin value="C:/Users/Brian Dang/Documents/eec172/labs/eec172labs/A01_JugalJain_BrianDang_WQ2019/tirtos_builds_CC3220S_LAUNCHXL_release_ccs"/>
+	<filesToOpen value=""/>
+</projectOptions>

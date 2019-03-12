@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<?ccsproject version="1.0"?>
+<projectOptions>
+	<ccsVersion value="8.3.0"/>
+	<deviceVariant value="Cortex M.CC3220S"/>
+	<deviceFamily value="TMS470"/>
+	<deviceEndianness value="little"/>
+	<codegenToolVersion value="18.1.4.LTS"/>
+	<isElfFormat value="true"/>
+	<connection value="common/targetdb/connections/TIXDS110_Connection.xml"/>
+	<rts value="libc.a"/>
+	<createSlaveProjects value=""/>
+	<ignoreDefaultDeviceSettings value="true"/>
+	<templateProperties value="id=temboodemo.projectspec.TwitterRemote"/>
+	<origin value="C:/Users/Brian Dang/Documents/eec172/labs/eec172labs/A01_JugalJain_BrianDang_WQ2019/TwitterRemote"/>
+	<filesToOpen value="TembooMain.c"/>
+</projectOptions>
