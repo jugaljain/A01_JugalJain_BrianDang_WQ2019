@@ -19,6 +19,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <limits.h>
 // Driverlib includes
 #include "hw_types.h"
 #include "hw_memmap.h"
@@ -41,6 +42,9 @@
 #include "Adafruit_SSD1351.h"
 #include "glcdfont.h"
 #include "i2c_if.h"
+#include "timer.h"
+#include "timer_if.h"
+
 
 #define APPLICATION_VERSION     "1.1.1"
 #define UART_PRINT              Report
@@ -120,6 +124,39 @@ extern uVectorEntry __vector_table;
 //
 //*****************************************************************************
 
+// RED : Speed up (1) - bonus
+// BLUE : Slow Down (1) - bonus
+// MAGENTA : Demon (1) - every 10 seconds
+// CYAN : Exorcism (1) - 5 seconds after demon
+// GREEN : Score double (1) - ultra rare bonus
+// YELLOW : Score increment (3) - instant respawn
+
+struct Spot{
+    int x;
+    int y;
+    int color;
+};
+
+Spot spotsYellow[3];
+Spot spotsBonus[2];
+Spot spotBonusQueue;
+
+long score;
+float speed;
+
+int gameOver;
+
+int timeToSpawnGreen;
+int timeToSpawnDemon;
+int demonSpawned;
+int timeToSpawnCure;
+
+static void TimerIntHandler()
+{
+    Timer_IF_InterruptClear(TIMERA2_BASE);
+    timerCount++;
+}
+
 static void
 BoardInit(void)
 {
@@ -142,6 +179,98 @@ BoardInit(void)
     MAP_IntEnable(FAULT_SYSTICK);
 
     PRCMCC3200MCUInit();
+}
+
+int genColor(int rand){
+    switch(rand){
+        case 0:
+            return MAGENTA;
+        case 1:
+            return RED;
+        case 2:
+            return BLUE;
+        case 3: 
+            return CYAN;
+        case 4: 
+            return GREEN;
+        case 5: 
+            return YELLOW; 
+        default:
+            break; 
+    }
+    return BLACK;
+}
+
+void spawnYellowSpot(int idx){
+    spotsYellow[idx].x = rand() % 123;
+    spotsYellow[idx].y = rand() % 123;
+    if(spotsYellow[idx].x < 4){
+        spotsYellow[idx].x = 4;
+    }
+    if(spotsYellow[idx].y < 4){
+        spotsYellow[idx].y = 4;
+    }
+    spotsYellow[idx].color = YELLOW;
+}
+
+void spawnBonusSpot(int idx){
+    spotsBonus[idx].x = rand() % 123;
+    spotsBonus[idx].y = rand() % 123;
+    if(timeToSpawnGreen == 1 && (rand() % 3) == 0){
+        spotsBonus[idx].color = GREEN;
+    }
+    else{
+        spotsBonus[idx].color = genColor((rand() % 2) + 1);
+    }
+    if(spotsBonus[idx].x < 4){
+        spotsBonus[idx].x = 4;
+    }
+    if(spotsBonus[idx].y < 4){
+        spotsBonus[idx].y = 4;
+    }
+}
+
+void drawSpots(){
+    int i = 0;
+    for(; i < 3; i++){
+        fillCircle(spotsYellow[i].x, spotsYellow[i].y, 4, spotsYellow[i].color)
+    }
+    for(i = 0; i < 2; i++){
+        //fillCircle(spotsBonus[i].x, spotsBonus[i].y, 4, spotsBonus[i].color)
+    }
+    //fillCircle()
+}
+
+int collision(int x, int y, int ox, int oy){
+    if((x >= ox - 4 && x <= ox + 4) && (y >= oy - 4 && y <= oy + 4)){
+        return 1;
+    }
+    return 0;
+}
+
+void spotCollision(int x, int y){
+    for(; i < 3; i++){
+        if(collision(x, y, spotsYellow[i].x, spotsYellow[i].y)){
+            score++;
+            fillCircle(spotsYellow[i].x, spotsYellow[i].y, 4, BLACK);
+            spawnYellowSpot(i);
+        }
+    }
+    // for(i = 0; i < 2; i++){
+    //     if(collision(x, y, spotsBonus[i].x, spotsBonus[i].y)){
+    //         fillCircle(spotsBonus[i].x, spotsBonus[i].y, 4, BLACK);
+    //         if(spotsBonus.color == RED){
+    //             speed = speed * 2;
+    //         }
+    //         else if(spotsBonus.color == BLUE){
+    //             speed = speed / 2;
+    //         }
+    //         else{
+    //             score = score * 2;
+    //         }
+    //         spawnBonusSpot(i);
+    //     }
+    // }
 }
 
 //*****************************************************************************
@@ -249,19 +378,37 @@ void main()
 
     //oled initialization and setting background to black
     Adafruit_Init();
+
+    availToSpawnSpots = (Spot) malloc(sizeof(Spot) * 6);
+
     fillScreen(BLACK);
     int ox = 0, oy = 0;
+    int radius = 4;
+    timeToSpawnGreen = 0;
+    timeToSpawnDemon = 0;
+    timeToSpawnCure = 0;
+    int i;
+    for(i = 0; i < 3; i++){
+        spawnYellowSpot(i);
+    }
+    for(i = 0; i < 2; i++){
+        spawnBonusSpot(i);
+    }
+
+    gameOver = 0;
     ox = rand() % 122;
     oy = rand() % 122;
-    if(ox < 6){
-        ox = 6;
+    if(ox < radius){
+        ox = radius;
     }
-    if(oy < 6){
-        oy = 6;
+    if(oy < radius){
+        oy = radius;
     }
     printf("%d , %d\n", ox, oy);
     while(1){
-            fillCircle((int) y, (int) x, 4, BLACK);//reset screen by filling circle back to black
+
+        if(!gameOver){
+            fillCircle((int) y, (int) x, radius, BLACK);//reset screen by filling circle back to black
 
             //get x values
             I2C_IF_Write(0x18,&ucRegOffsetX,1,0);
@@ -296,34 +443,30 @@ void main()
             }
 
             //checking for bounds
-            if(x > 123){
-                x = 123;
+            if(x > (127 - radius)){
+                x = 127 - radius;
             }
 
-            if(y > 123){
-                y = 123;
+            if(y > (127 - radius)){
+                y = 127 - radius;
             }
 
-            if(x < 4){
-                x = 4;
+            if(x < radius){
+                x = radius;
             }
 
-            if(y < 4){
-                y = 4;
+            if(y < radius){
+                y = radius;
             }
 
             //draw circle in x and y value, switched because axis was flipped from what I originally planned
-            fillCircle((int) y, (int) x, 4, WHITE);
-
-            fillCircle(ox, oy, 4, RED);
-            if((y >= ox - 4 && y <= ox + 4) && (x >= oy - 4 && x <= oy + 4)){
-                fillCircle(ox, oy, 4, BLACK);
-                ox =  (rand() % 122);
-                oy =  (rand() % 122);
-                fillCircle(ox, oy, 4, RED);
-            }
+            spotCollision();
+            fillCircle((int) y, (int) x, radius, WHITE);
+            drawSpots();
 
         }
+
+    }
 
     //
     // Disable chip select
