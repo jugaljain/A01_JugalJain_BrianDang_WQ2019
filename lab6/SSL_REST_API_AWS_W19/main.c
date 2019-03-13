@@ -44,8 +44,8 @@
 
 #define APPLICATION_NAME        "SSL"
 #define APPLICATION_VERSION     "1.1.1.EEC.Spring2018"
-#define SERVER_NAME             "a303joohp8w12t-ats.iot.us-west-2.amazonaws.com"
-#define GOOGLE_DST_PORT         8443
+#define SERVER_NAME             "api.twitter.com"
+#define GOOGLE_DST_PORT         443
 
 #define SL_SSL_CA_CERT "/cert/rootCA.der" //starfield class2 rootca (from firefox) // <-- this one works
 #define SL_SSL_PRIVATE "/cert/private.der"
@@ -62,7 +62,7 @@
 
 #define POSTHEADER "POST /things/912730879_CC3200/shadow HTTP/1.1\n\r"
 #define GETHEADER "GET /things/912730879_CC3200/shadow HTTP/1.1\n\r"
-#define HOSTHEADER "Host: a303joohp8w12t-ats.iot.us-west-2.amazonaws.com\r\n"
+#define HOSTHEADER "Host: api.twitter.com\r\n"
 #define CHEADER "Connection: Keep-Alive\r\n"
 #define CTHEADER "Content-Type: application/json; charset=utf-8\r\n"
 #define CLHEADER1 "Content-Length: "
