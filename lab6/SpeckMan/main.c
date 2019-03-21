@@ -1,8 +1,8 @@
 //*****************************************************************************
 //
 // Authors              -   Brian Dang, Jugal Jain
-// Application Name     -   AWS Texting
-// Application Overview -   Connects to an AWS Server and sends texts to a phone
+// Application Name     -   SpeckMan
+// Application Overview -   Game similar to PacMan for final project
 // Application Details  -
 // docs\examples\CC32xx_SSL_Demo_Application.pdf
 // or
@@ -200,6 +200,7 @@ static void TimerIntHandler()
     timerCount++;
 }
 
+//function to choose random colors to generate
 int genColor(int rand){
     switch(rand){
         case 0:
@@ -220,9 +221,11 @@ int genColor(int rand){
     return BLACK;
 }
 
+//function to randomly select the x and y values of the next yellow spot
 void spawnYellowSpot(int idx){
     spotsYellow[idx].x = rand() % 123;
     spotsYellow[idx].y = rand() % 123;
+    //checks for boundaries
     if(spotsYellow[idx].x < 4){
         spotsYellow[idx].x = 4;
     }
@@ -232,15 +235,18 @@ void spawnYellowSpot(int idx){
     spotsYellow[idx].color = YELLOW;
 }
 
+//function to spawn bonus spot colors
 void spawnBonusSpot(int idx){
     spotsBonus[idx].x = rand() % 123;
     spotsBonus[idx].y = rand() % 123;
+    //periodically spawn green, else generate random
     if(timeToSpawnGreen == 1 && (rand() % 3) == 0){
         spotsBonus[idx].color = GREEN;
     }
     else{
         spotsBonus[idx].color = genColor((rand() % 2) + 1);
     }
+    //checks for boundaries
     if(spotsBonus[idx].x < 4){
         spotsBonus[idx].x = 4;
     }
@@ -249,6 +255,7 @@ void spawnBonusSpot(int idx){
     }
 }
 
+//function to draw the spots to the OLED board
 void drawSpots(){
     int i = 0;
     for(; i < 3; i++){
@@ -269,8 +276,10 @@ int collision(int x, int y, int ox, int oy){
     return 0;
 }
 
+//function to check if the player collided with the spot and does special properties for the spot
 int spotCollision(int x, int y, long lRetVal){
     int i;
+    //keeps track of 3 yellow spots, if it collides with yellow spawn a new one and addd to array
     for(i = 0; i < 3; i++){
         if(collision(x, y, spotsYellow[i].x, spotsYellow[i].y)){
             score++;
@@ -279,16 +288,20 @@ int spotCollision(int x, int y, long lRetVal){
             return 1;
         }
     }
+    //keeps track of two bonuses, if collisions spawn new bonus and add to array
     for (i = 0; i < 2; i++)
     {
         if (collision(x, y, spotsBonus[i].x, spotsBonus[i].y))
         {
+            //erases the eaten spot
             fillCircle(spotsBonus[i].x, spotsBonus[i].y, 4, BLACK);
+            //boosts speed if red
             if (spotsBonus[i].color == RED)
             {
                 speed = speed * 2;
                 demonSpeed = demonSpeed * 2;
             }
+            //decreases speed if blue
             else if (spotsBonus[i].color == BLUE)
             {
                 speed = speed / 2;
@@ -303,6 +316,7 @@ int spotCollision(int x, int y, long lRetVal){
             return 1;
         }
     }
+    //if collided into demon switch to game over and send score to AWS
     if(demonSpawned){
         if(collision(x, y, demon.x, demon.y)){
             fillScreen(BLACK);
@@ -319,12 +333,15 @@ int spotCollision(int x, int y, long lRetVal){
             TimerEnable(TIMERA2_BASE, TIMER_A);
         }
     }
+    //if collided with cure, despawn both demon and cure
     if(cureSpawned){
         if(collision(x, y, cure.x, cure.y)){
             demonSpawned = 0;
             cureSpawned = 0;
+            //erases spot
             fillCircle(demon.x, demon.y, 4, BLACK);
             fillCircle(cure.x, cure.y, 4, BLACK);
+            //sets x and y way off the board
             cure.x = 600;
             cure.y = 600;
             demon.x = 600;
@@ -1137,9 +1154,11 @@ void main() {
 
     while (1)
     {
+        //state when the game is running
         if (!gameOver)
         {
             fillCircle((int) y, (int) x, radius, BLACK); //reset screen by filling circle back to black
+            //spawning demon
             if (demonSpawned)
             {
                 fillCircle(demon.x, demon.y, 4, BLACK);
@@ -1203,6 +1222,7 @@ void main() {
 
             if (timerCount % 30 == 9)
             {
+                //spawns demon
                 if (!demonSpawned)
                 {
                     fillCircle(demon.x, demon.y, 4, BLACK);
@@ -1223,6 +1243,7 @@ void main() {
                 }
             }
 
+            //spawns cure periodically
             if (demonSpawned && (timerCount - demSpawnTime) >= 20)
             {
                 if (!cureSpawned)
@@ -1243,6 +1264,7 @@ void main() {
                 }
             }
 
+            //spawns Green spot periodically
             if (timerCount % 100 == 4)
             {
                 timeToSpawnGreen = 1;
@@ -1250,30 +1272,36 @@ void main() {
 
             //draw circle in x and y value, switched because axis was flipped from what I originally planned
             fillCircle((int) y, (int) x, radius, WHITE);
+            //moves demon location to follow player
             if (demonSpawned)
             {
                 follow(y, x);
                 fillCircle(demon.x, demon.y, 4, demon.color);
             }
+            //checks for collision and redraws spot
             if (spotCollision(y, x, lRetVal))
             {
                 drawSpots();
             }
             flag = 1;
         }
+        //gameover state
         else
         {
+            //print start message
             if (!msgDisplayed)
             {
                 fillScreen(BLACK);
                 setCursor(0, 64);
                 Outstr("Press SW3 to start!");
                 msgDisplayed = 1;
-                //GPIOIntEnable(GPIOA1_BASE, 0x20);
             }
+            //polling for SW3
             int sw3 = GPIOPinRead(GPIOA1_BASE, 0x20);
+            //when switch 3 is pressed start the game
             if (sw3 == 0x20)
             {
+                //set up starting parameters
                 score = 0;
                 speed = 0.5;
                 fillScreen(BLACK);
@@ -1282,6 +1310,7 @@ void main() {
                 cureSpawned = 0;
                 demonSpeed = 0.15;
                 int i;
+                //spawn starting yellow spots and bonus spots
                 for (i = 0; i < 3; i++)
                 {
                     spawnYellowSpot(i);
@@ -1290,6 +1319,7 @@ void main() {
                 {
                     spawnBonusSpot(i);
                 }
+                //set gameOver to 0 to star game
                 gameOver = 0;
                 msgDisplayed = 0;
                 drawSpots();
@@ -1297,9 +1327,6 @@ void main() {
         }
 
     }
-
-//    http_post(lRetVal);
-//    http_get(lRetVal);
 
     sl_Stop(SL_STOP_TIMEOUT);
     LOOP_FOREVER();
